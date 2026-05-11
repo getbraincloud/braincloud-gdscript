@@ -1,0 +1,14 @@
+# Godot cache
+.godot/
+
+# Godot 4.4+ generates a .uid file beside every .gd/.tscn/.tres etc.
+# Safe to ignore for a pure-code addon (no scene/resource cross-references).
+# NOTE: If you consume this SDK inside a full game project, commit .uid files
+# there so uid:// references stay consistent across the team.
+*.uid
+
+# BCCM: cached Godot executable path (machine-specific)
+.godot_executable
+
+# Test credentials (never commit)
+test/ids.cfg
