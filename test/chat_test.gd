@@ -7,7 +7,8 @@ func run(bc: BCTest) -> void:
 
 func test_get_channel_id(bc: BCTest) -> void:
 	bc.begin_test("test_get_channel_id")
-	var response := await bc.bc_wrapper.chat_service.get_channel_id("gl", "valid-channel-id")
+	var channel_id: String = bc.ids.get("channelId", "valid-channel-id")
+	var response := await bc.bc_wrapper.chat_service.get_channel_id("gl", channel_id)
 	var status: int = response.get("status", -1)
 	bc.expect_true(
 		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,

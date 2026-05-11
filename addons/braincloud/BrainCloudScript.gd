@@ -44,8 +44,11 @@ func run_parent_script(script_name: String, json_script_data: Dictionary, parent
 	}
 	return await _send(ServiceOperation.RUN_PARENT_SCRIPT, data)
 
-func get_scheduled_cloud_scripts() -> Dictionary:
-	return await _send(ServiceOperation.GET_SCHEDULED_CLOUD_SCRIPTS, {})
+func get_scheduled_cloud_scripts(start_time_utc: int = 0) -> Dictionary:
+	var data := {}
+	if start_time_utc > 0:
+		data[OperationParam.SCRIPT_SERVICE_SCHEDULED_START_TIME] = start_time_utc
+	return await _send(ServiceOperation.GET_SCHEDULED_CLOUD_SCRIPTS, data)
 
 func get_running_or_queued_cloud_scripts() -> Dictionary:
 	return await _send(ServiceOperation.GET_RUNNING_OR_QUEUED_CLOUD_SCRIPTS, {})

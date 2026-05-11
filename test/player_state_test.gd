@@ -8,6 +8,13 @@ func run(bc: BCTest) -> void:
 	await test_update_contact_email(bc)
 	await test_update_picture_url(bc)
 	await test_attributes(bc)
+	await test_set_user_status(bc)
+	await test_get_user_status(bc)
+	await test_extend_user_status(bc)
+	await test_clear_user_status(bc)
+	await test_update_timezone_offset(bc)
+	await test_update_language_code(bc)
+	await test_reset_user(bc)
 
 func test_read_player_state(bc: BCTest) -> void:
 	bc.begin_test("test_read_player_state")
@@ -49,3 +56,40 @@ func test_attributes(bc: BCTest) -> void:
 
 	var remove_resp := await bc.bc_wrapper.player_state_service.remove_attributes(["testAttr", "numAttr"])
 	bc.expect_status_ok(remove_resp)
+
+func test_set_user_status(bc: BCTest) -> void:
+	bc.begin_test("test_set_user_status")
+	var response := await bc.bc_wrapper.player_state_service.set_user_status("a_Status_Name", 60, {})
+	bc.expect_status_ok(response)
+
+func test_get_user_status(bc: BCTest) -> void:
+	bc.begin_test("test_get_user_status")
+	var response := await bc.bc_wrapper.player_state_service.get_user_status("a_Status_Name")
+	bc.expect_status_ok(response)
+
+func test_extend_user_status(bc: BCTest) -> void:
+	bc.begin_test("test_extend_user_status")
+	var response := await bc.bc_wrapper.player_state_service.extend_user_status("a_Status_Name", 1000, {})
+	bc.expect_status_ok(response)
+
+func test_clear_user_status(bc: BCTest) -> void:
+	bc.begin_test("test_clear_user_status")
+	var response := await bc.bc_wrapper.player_state_service.clear_user_status("a_Status_Name")
+	bc.expect_status_ok(response)
+
+func test_update_timezone_offset(bc: BCTest) -> void:
+	bc.begin_test("test_update_timezone_offset")
+	var response := await bc.bc_wrapper.player_state_service.update_timezone_offset(2.0)
+	bc.expect_status_ok(response)
+
+func test_update_language_code(bc: BCTest) -> void:
+	bc.begin_test("test_update_language_code")
+	var response := await bc.bc_wrapper.player_state_service.update_language_code("fr")
+	bc.expect_status_ok(response)
+
+func test_reset_user(bc: BCTest) -> void:
+	bc.begin_test("test_reset_user")
+	var response := await bc.bc_wrapper.player_state_service.reset_user()
+	bc.expect_status_ok(response)
+	# Re-authenticate to restore session after reset
+	await bc.bc_wrapper.authenticate_universal(bc.user_a.name, bc.user_a.password, true)

@@ -83,14 +83,14 @@ func get_shared_entities_for_profile_id(profile_id: String) -> Dictionary:
 
 func get_page(context: Dictionary) -> Dictionary:
 	var data := {OperationParam.GLOBAL_ENTITY_SERVICE_CONTEXT: context}
-	return await _send(ServiceOperation.GET_ENTITY_PAGE, data)
+	return await _send(ServiceOperation.GET_PAGE, data)
 
 func get_page_offset(context: String, page_offset: int) -> Dictionary:
 	var data := {
 		OperationParam.GLOBAL_ENTITY_SERVICE_CONTEXT: context,
 		OperationParam.GLOBAL_ENTITY_SERVICE_PAGE_OFFSET: page_offset
 	}
-	return await _send(ServiceOperation.GET_ENTITY_PAGE_OFFSET, data)
+	return await _send(ServiceOperation.GET_PAGE_BY_OFFSET, data)
 
 func update_singleton(entity_type: String, json_entity_data: Dictionary, json_entity_acl: Dictionary, version: int) -> Dictionary:
 	var data := {
@@ -117,6 +117,42 @@ func update_entity_owner_and_acl(entity_id: String, version: int, profile_id: St
 		OperationParam.ENTITY_SERVICE_ACL: acl
 	}
 	return await _send(ServiceOperation.UPDATE_ENTITY_OWNER_AND_ACL, data)
+
+func get_list(where_json: Dictionary, order_by_json: Dictionary, max_return: int) -> Dictionary:
+	var data := {
+		OperationParam.GLOBAL_ENTITY_SERVICE_WHERE: where_json,
+		OperationParam.GLOBAL_ENTITY_SERVICE_ORDER_BY: order_by_json,
+		OperationParam.GLOBAL_ENTITY_SERVICE_MAX_RETURN: max_return
+	}
+	return await _send(ServiceOperation.GET_LIST, data)
+
+func get_list_count(where_json: Dictionary) -> Dictionary:
+	var data := {OperationParam.GLOBAL_ENTITY_SERVICE_WHERE: where_json}
+	return await _send(ServiceOperation.GET_LIST_COUNT, data)
+
+func get_shared_entities_list_for_profile_id(target_profile_id: String, where_json: Dictionary, order_by_json: Dictionary, max_return: int) -> Dictionary:
+	var data := {
+		"targetPlayerId": target_profile_id,
+		OperationParam.GLOBAL_ENTITY_SERVICE_WHERE: where_json,
+		OperationParam.GLOBAL_ENTITY_SERVICE_ORDER_BY: order_by_json,
+		OperationParam.GLOBAL_ENTITY_SERVICE_MAX_RETURN: max_return
+	}
+	return await _send(ServiceOperation.LIST_SHARED_ENTITIES_FROM_PLAYER, data)
+
+func increment_user_entity_data(entity_id: String, json_data: Dictionary) -> Dictionary:
+	var data := {
+		OperationParam.ENTITY_SERVICE_ENTITY_ID: entity_id,
+		OperationParam.ENTITY_SERVICE_ENTITY_DATA: json_data
+	}
+	return await _send(ServiceOperation.INCREMENT_USER_ENTITY_DATA, data)
+
+func increment_shared_user_entity_data(entity_id: String, target_profile_id: String, json_data: Dictionary) -> Dictionary:
+	var data := {
+		OperationParam.ENTITY_SERVICE_ENTITY_ID: entity_id,
+		OperationParam.ENTITY_SERVICE_FRIEND_ID: target_profile_id,
+		OperationParam.ENTITY_SERVICE_ENTITY_DATA: json_data
+	}
+	return await _send(ServiceOperation.INCREMENT_SHARED_USER_ENTITY_DATA, data)
 
 func make_system_entity(entity_id: String, version: int, acl: Dictionary) -> Dictionary:
 	var data := {

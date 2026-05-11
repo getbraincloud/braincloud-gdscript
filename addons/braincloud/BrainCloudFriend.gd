@@ -33,13 +33,13 @@ func read_friend_entity(entity_id: String, friend_id: String) -> Dictionary:
 		OperationParam.FRIEND_SERVICE_ENTITY_ID: entity_id,
 		OperationParam.FRIEND_SERVICE_PROFILE_ID: friend_id
 	}
-	return await _send(ServiceOperation.READ_FRIENDS, data)
+	return await _send(ServiceOperation.READ_FRIEND_ENTITY, data)
 
 func read_friends_entities(entity_type: String) -> Dictionary:
 	var data := {
 		OperationParam.FRIEND_SERVICE_ENTITY_TYPE: entity_type
 	}
-	return await _send(ServiceOperation.READ_FRIENDS, data)
+	return await _send(ServiceOperation.READ_FRIENDS_ENTITIES, data)
 
 func get_users_online_status(profile_ids: Array) -> Dictionary:
 	var data := {
@@ -80,9 +80,10 @@ func find_user_by_exact_universal_id(search_text: String) -> Dictionary:
 	}
 	return await _send(ServiceOperation.FIND_USER_BY_EXACT_UNIVERSAL_ID, data)
 
-func find_users_by_exact_name(search_text: String) -> Dictionary:
+func find_users_by_exact_name(search_text: String, max_results: int = 10) -> Dictionary:
 	var data := {
-		OperationParam.FRIEND_SERVICE_USER_NAME: search_text
+		OperationParam.FRIEND_SERVICE_USER_NAME: search_text,
+		OperationParam.SOCIAL_LEADERBOARD_SERVICE_NUM_RESULTS_TO_RETURN: max_results
 	}
 	return await _send(ServiceOperation.FIND_USERS_BY_EXACT_NAME, data)
 
@@ -112,6 +113,17 @@ func get_summary_data_for_profile_id(profile_id: String) -> Dictionary:
 		OperationParam.FRIEND_SERVICE_PROFILE_ID: profile_id
 	}
 	return await _send(ServiceOperation.GET_SUMMARY_DATA_FOR_PROFILE_ID, data)
+
+func get_my_social_info(friend_platform: String, include_summary_data: bool) -> Dictionary:
+	var data := {
+		OperationParam.FRIEND_SERVICE_FRIEND_PLATFORM: friend_platform,
+		OperationParam.FRIEND_SERVICE_INCLUDE_SUMMARY_DATA: include_summary_data
+	}
+	return await _send(ServiceOperation.GET_MY_DATA, data)
+
+func read_friend_user_state(friend_id: String) -> Dictionary:
+	var data := {"friendId": friend_id}
+	return await _send(ServiceOperation.READ_FRIEND_PLAYER_STATE, data)
 
 func _send(operation: String, data: Dictionary) -> Dictionary:
 	var sc := ServerCall.new(ServiceName.FRIEND, operation, data)

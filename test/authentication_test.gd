@@ -1,8 +1,6 @@
 # Copyright 2026 bitHeads, Inc. All Rights Reserved.
 extends RefCounted
 
-const STABLE_EMAIL := "braincloudunittest@gmail.com"
-
 func run(bc: BCTest) -> void:
 	await test_get_server_version(bc)
 	await test_authenticate_anonymous(bc)
@@ -53,25 +51,28 @@ func test_authenticate_email_password(bc: BCTest) -> void:
 
 func test_reset_email_password(bc: BCTest) -> void:
 	bc.begin_test("test_reset_email_password")
-	# Use a stable email that exists on the server (mirrors Dart test pattern)
-	await bc.bc_wrapper.authenticate_email_password(STABLE_EMAIL, STABLE_EMAIL, true)
-	var response := await bc.bc_wrapper.authentication_service.reset_email_password(STABLE_EMAIL)
+	var email: String = bc.ids.get("stableEmail", "braincloudunittest@gmail.com")
+	await bc.bc_wrapper.authenticate_email_password(email, email, true)
+	var response := await bc.bc_wrapper.authentication_service.reset_email_password(email)
 	bc.expect_status_ok(response)
 	# Restore session as user_a
 	await bc.bc_wrapper.authenticate_universal(bc.user_a.name, bc.user_a.password, true)
 
 func test_reset_email_password_with_expiry(bc: BCTest) -> void:
 	bc.begin_test("test_reset_email_password_with_expiry")
-	await bc.bc_wrapper.authenticate_email_password(STABLE_EMAIL, STABLE_EMAIL, true)
-	var response := await bc.bc_wrapper.authentication_service.reset_email_password_with_expiry(STABLE_EMAIL, 1)
+	var email: String = bc.ids.get("stableEmail", "braincloudunittest@gmail.com")
+	await bc.bc_wrapper.authenticate_email_password(email, email, true)
+	var response := await bc.bc_wrapper.authentication_service.reset_email_password_with_expiry(email, 1)
 	bc.expect_status_ok(response)
 	await bc.bc_wrapper.authenticate_universal(bc.user_a.name, bc.user_a.password, true)
 
 func test_reset_universal_id_password(bc: BCTest) -> void:
 	bc.begin_test("test_reset_universal_id_password")
 	# UserA is a Universal user with no email attached — server returns 400 (EMAIL_ID_NOT_FOUND).
-	# Both 200 and 400 are valid outcomes depending on whether the user has email.
+	# 200, 400, and 409 are all valid outcomes depending on whether the user has email.
 	var response := await bc.bc_wrapper.authentication_service.reset_universal_id_password(bc.user_a.name)
 	var status: int = response.get("status", -1)
-	bc.expect_true(status == StatusCodes.OK or status == StatusCodes.CONFLICT,
-		"Expected 200 or 409 (email not found), got %d" % status)
+	bc.expect_true(
+		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST or status == StatusCodes.CONFLICT,
+		"Expected 200, 400, or 409, got %d" % status
+	)

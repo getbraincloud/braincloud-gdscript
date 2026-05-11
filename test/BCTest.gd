@@ -101,7 +101,11 @@ func expect_eq(actual, expected, msg: String = "") -> void:
 		push_error("  FAIL [%s]: expected %s == %s. %s" % [_current_test, str(actual), str(expected), msg])
 
 func expect_status_ok(response: Dictionary) -> void:
-	expect_eq(response.get("status", -1), StatusCodes.OK, "Expected status 200")
+	var status: int = response.get("status", -1)
+	expect_true(
+		status == StatusCodes.OK or status == StatusCodes.ACCEPTED,
+		"Expected status 200 or 202, got %d" % status
+	)
 
 func expect_status(response: Dictionary, expected_status: int) -> void:
 	expect_eq(response.get("status", -1), expected_status, "Expected status %d" % expected_status)

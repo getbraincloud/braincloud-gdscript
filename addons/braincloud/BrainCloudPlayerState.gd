@@ -59,14 +59,36 @@ func update_language_code(language_code: String) -> Dictionary:
 func update_timezone_offset(timezone_offset: float) -> Dictionary:
 	return await _send(ServiceOperation.SET_TIMEZONE_OFFSET, {OperationParam.PLAYER_STATE_SERVICE_TIMEZONE_OFFSET: timezone_offset})
 
-func update_status(status_name: String, duration_secs: int, data: Dictionary) -> Dictionary:
+func reset_user() -> Dictionary:
+	return await _send(ServiceOperation.DATA_RESET, {})
+
+func delete_user() -> Dictionary:
+	return await _send(ServiceOperation.FULL_RESET, {})
+
+func set_user_status(status_name: String, duration_secs: int, details: Dictionary) -> Dictionary:
 	var req := {
 		OperationParam.PLAYER_STATE_SERVICE_STATUS_NAME: status_name,
-		OperationParam.PLAYER_STATE_SERVICE_DURATION: duration_secs
+		OperationParam.PLAYER_STATE_SERVICE_DURATION_SECS: duration_secs,
+		OperationParam.PLAYER_STATE_SERVICE_DETAILS: details
 	}
-	if data.size() > 0:
-		req[OperationParam.PLAYER_STATE_SERVICE_DATA] = data
-	return await _send("SET_STATUS", req)
+	return await _send(ServiceOperation.SET_USER_STATUS, req)
+
+func get_user_status(status_name: String) -> Dictionary:
+	return await _send(ServiceOperation.GET_USER_STATUS, {OperationParam.PLAYER_STATE_SERVICE_STATUS_NAME: status_name})
+
+func clear_user_status(status_name: String) -> Dictionary:
+	return await _send(ServiceOperation.CLEAR_USER_STATUS, {OperationParam.PLAYER_STATE_SERVICE_STATUS_NAME: status_name})
+
+func extend_user_status(status_name: String, additional_secs: int, details: Dictionary) -> Dictionary:
+	var req := {
+		OperationParam.PLAYER_STATE_SERVICE_STATUS_NAME: status_name,
+		OperationParam.PLAYER_STATE_SERVICE_ADDITIONAL_SECS: additional_secs,
+		OperationParam.PLAYER_STATE_SERVICE_DETAILS: details
+	}
+	return await _send(ServiceOperation.EXTEND_USER_STATUS, req)
+
+func update_status(status_name: String, duration_secs: int, data: Dictionary) -> Dictionary:
+	return await set_user_status(status_name, duration_secs, data)
 
 func set_experience_points(xp_value: int) -> Dictionary:
 	return await _send(ServiceOperation.SET_EXPERIENCE_POINTS, {"xpPoints": xp_value})

@@ -14,7 +14,7 @@ func test_find_matches(bc: BCTest) -> void:
 func test_create_and_abandon(bc: BCTest) -> void:
 	bc.begin_test("test_create_and_abandon")
 	var opponents := [{"platform": "BC", "id": bc.user_b.profile_id}]
-	var create_resp := await bc.bc_wrapper.async_match_service.create_match(opponents, "")
+	var create_resp := await bc.bc_wrapper.async_match_service.create_match(opponents, {})
 	bc.expect_status_ok(create_resp)
 
 	var match_data: Dictionary = create_resp.get("data", {})

@@ -27,6 +27,6 @@ func test_read_achievements(bc: BCTest) -> void:
 
 func test_read_xp_levels(bc: BCTest) -> void:
 	bc.begin_test("test_read_xp_levels")
-	var response := await bc.bc_wrapper.gamification_service.read_xp_levels_meta()
+	var response := await bc.bc_wrapper.gamification_service.read_xp_levels_meta_data()
 	bc.expect_status_ok(response)
 	bc.expect_has_key(response, "data")

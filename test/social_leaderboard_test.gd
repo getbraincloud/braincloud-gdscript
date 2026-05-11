@@ -27,8 +27,9 @@ func test_get_global_leaderboard_page(bc: BCTest) -> void:
 
 func test_post_score_to_dynamic_leaderboard(bc: BCTest) -> void:
 	bc.begin_test("test_post_score_to_dynamic_leaderboard")
+	var lb_id: String = bc.ids.get("leaderboardId", "testLeaderboard")
 	var response := await bc.bc_wrapper.social_leaderboard_service.post_score_to_dynamic_leaderboard(
-		"testLB", 100, {}, "HIGH_VALUE", "WEEKLY", 0, 2
+		lb_id, 100, {}, "HIGH_VALUE", "WEEKLY", 0, 2
 	)
 	var status: int = response.get("status", -1)
 	bc.expect_true(

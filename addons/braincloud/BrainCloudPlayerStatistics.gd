@@ -7,6 +7,9 @@ var _client_ref: BrainCloudClient
 func _init(client_ref: BrainCloudClient) -> void:
 	_client_ref = client_ref
 
+func get_next_experience_level() -> Dictionary:
+	return await _send(ServiceOperation.READ_NEXT_XPLEVEL, {})
+
 func read_all_user_stats() -> Dictionary:
 	return await _send(ServiceOperation.READ, {})
 
@@ -26,7 +29,7 @@ func increment_experience_points(xp_value: int) -> Dictionary:
 	return await _send(ServiceOperation.UPDATE, {OperationParam.PLAYER_STATISTICS_SERVICE_EXPERIENCE_POINTS: xp_value})
 
 func set_experience_points(xp_value: int) -> Dictionary:
-	return await _send("SET", {OperationParam.PLAYER_STATISTICS_SERVICE_EXPERIENCE_POINTS: xp_value})
+	return await _send(ServiceOperation.SET_XPPOINTS, {OperationParam.PLAYER_STATISTICS_SERVICE_EXPERIENCE_POINTS: xp_value})
 
 func process_statistics(json_data: Dictionary) -> Dictionary:
 	return await _send(ServiceOperation.PROCESS_STATISTICS, {OperationParam.PLAYER_STATISTICS_SERVICE_STATISTICS: json_data})
