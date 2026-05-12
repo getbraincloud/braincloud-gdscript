@@ -129,7 +129,7 @@ func increment_global_entity_data(entity_id: String, json_data: Dictionary) -> D
 		OperationParam.GLOBAL_ENTITY_SERVICE_ENTITY_ID: entity_id,
 		OperationParam.GLOBAL_ENTITY_SERVICE_DATA: json_data
 	}
-	return await _send(ServiceOperation.INCREMENT, data)
+	return await _send(ServiceOperation.INCREMENT_GLOBAL_ENTITY_DATA, data)
 
 func _send(operation: String, data: Dictionary) -> Dictionary:
 	var sc := ServerCall.new(ServiceName.GLOBAL_ENTITY, operation, data)

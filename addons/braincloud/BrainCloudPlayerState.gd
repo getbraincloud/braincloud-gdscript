@@ -54,10 +54,10 @@ func get_attributes() -> Dictionary:
 	return await _send(ServiceOperation.READ_STATISTICS, {})
 
 func update_language_code(language_code: String) -> Dictionary:
-	return await _send(ServiceOperation.SET_LANGUAGE, {OperationParam.PLAYER_STATE_SERVICE_LANGUAGE_CODE: language_code})
+	return await _send(ServiceOperation.UPDATE_LANGUAGE_CODE, {OperationParam.PLAYER_STATE_SERVICE_LANGUAGE_CODE: language_code})
 
 func update_timezone_offset(timezone_offset: float) -> Dictionary:
-	return await _send(ServiceOperation.SET_TIMEZONE_OFFSET, {OperationParam.PLAYER_STATE_SERVICE_TIMEZONE_OFFSET: timezone_offset})
+	return await _send(ServiceOperation.UPDATE_TIMEZONE_OFFSET, {OperationParam.PLAYER_STATE_SERVICE_TIMEZONE_OFFSET: timezone_offset})
 
 func reset_user() -> Dictionary:
 	return await _send(ServiceOperation.DATA_RESET, {})

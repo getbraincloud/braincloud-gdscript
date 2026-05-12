@@ -5,6 +5,8 @@ extends Node
 const PREFS_PROFILE_ID := "brainCloud.profileId"
 const PREFS_ANONYMOUS_ID := "brainCloud.anonymousId"
 const PREFS_AUTHENTICATION_TYPE := "brainCloud.authenticationType"
+const PREFS_EXTERNAL_ID := "brainCloud.externalId"
+const PREFS_AUTH_TOKEN := "brainCloud.authToken"
 const PREFS_LAST_PACKET_ID := "brainCloud.lastPacketId"
 
 var _client: BrainCloudClient = null
@@ -181,6 +183,8 @@ func authenticate_anonymous(force_create: bool = true) -> Dictionary:
 func authenticate_email_password(email: String, password: String, force_create: bool) -> Dictionary:
 	_init_profile_for_authenticate()
 	set_stored_authentication_type(AuthenticationType.EMAIL)
+	_save_pref(PREFS_EXTERNAL_ID, email)
+	_save_pref(PREFS_AUTH_TOKEN, password)
 	var response := await _client.authentication_service.authenticate_email_password(email, password, force_create)
 	if response.get("status", 0) == StatusCodes.OK:
 		_on_authenticated(response)
@@ -189,6 +193,8 @@ func authenticate_email_password(email: String, password: String, force_create: 
 func authenticate_universal(username: String, password: String, force_create: bool) -> Dictionary:
 	_init_profile_for_authenticate()
 	set_stored_authentication_type(AuthenticationType.UNIVERSAL)
+	_save_pref(PREFS_EXTERNAL_ID, username)
+	_save_pref(PREFS_AUTH_TOKEN, password)
 	var response := await _client.authentication_service.authenticate_universal(username, password, force_create)
 	if response.get("status", 0) == StatusCodes.OK:
 		_on_authenticated(response)
@@ -228,9 +234,15 @@ func authenticate_steam(steam_id: String, session_ticket: String, force_create: 
 
 func reauthenticate() -> Dictionary:
 	var auth_type := get_stored_authentication_type()
-	if auth_type == AuthenticationType.ANONYMOUS:
-		return await authenticate_anonymous()
-	push_warning("BrainCloudWrapper.reauthenticate: non-anonymous re-auth not supported, use authenticate_* directly")
+	if auth_type == AuthenticationType.ANONYMOUS or auth_type.is_empty():
+		return await authenticate_anonymous(false)
+	var ext_id := _load_pref(PREFS_EXTERNAL_ID)
+	var auth_token := _load_pref(PREFS_AUTH_TOKEN)
+	if auth_type == AuthenticationType.UNIVERSAL:
+		return await authenticate_universal(ext_id, auth_token, false)
+	if auth_type == AuthenticationType.EMAIL:
+		return await authenticate_email_password(ext_id, auth_token, false)
+	push_warning("BrainCloudWrapper.reauthenticate: unsupported auth type '%s'" % auth_type)
 	return {"status": StatusCodes.CLIENT_NETWORK_ERROR}
 
 func reconnect() -> Dictionary:
@@ -242,7 +254,13 @@ func logout(forget_user: bool = false) -> Dictionary:
 		reset_stored_profile_id()
 		reset_stored_anonymous_id()
 		set_stored_authentication_type("")
+		_save_pref(PREFS_EXTERNAL_ID, "")
+		_save_pref(PREFS_AUTH_TOKEN, "")
 	return response
+
+func reset_to_default_app() -> void:
+	if not _last_app_id.is_empty():
+		_client.initialize(_last_secret_key, _last_app_id, _last_app_version, _last_url)
 
 func _on_authenticated(response: Dictionary) -> void:
 	var data: Dictionary = response.get("data", {})

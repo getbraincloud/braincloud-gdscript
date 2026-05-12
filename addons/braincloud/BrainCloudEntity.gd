@@ -78,7 +78,7 @@ func get_shared_entity(profile_id: String, entity_id: String) -> Dictionary:
 	return await _send(ServiceOperation.READ_SHARED_ENTITY, data)
 
 func get_shared_entities_for_profile_id(profile_id: String) -> Dictionary:
-	var data := {OperationParam.ENTITY_SERVICE_FRIEND_ID: profile_id}
+	var data := {"targetPlayerId": profile_id}
 	return await _send(ServiceOperation.READ_SHARED, data)
 
 func get_page(context: Dictionary) -> Dictionary:
@@ -137,7 +137,7 @@ func get_shared_entities_list_for_profile_id(target_profile_id: String, where_js
 		OperationParam.GLOBAL_ENTITY_SERVICE_ORDER_BY: order_by_json,
 		OperationParam.GLOBAL_ENTITY_SERVICE_MAX_RETURN: max_return
 	}
-	return await _send(ServiceOperation.LIST_SHARED_ENTITIES_FROM_PLAYER, data)
+	return await _send(ServiceOperation.READ_SHARED_ENTITIES_LIST, data)
 
 func increment_user_entity_data(entity_id: String, json_data: Dictionary) -> Dictionary:
 	var data := {

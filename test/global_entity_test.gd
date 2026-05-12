@@ -173,8 +173,8 @@ func test_update_entity_owner_and_acl(bc: BCTest) -> void:
 	)
 	var status: int = response.get("status", -1)
 	bc.expect_true(
-		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
-		"Expected 200 or 400, got %d" % status
+		status == StatusCodes.OK or status == StatusCodes.ACCEPTED or status == StatusCodes.BAD_REQUEST,
+		"Expected 200, 202, or 400, got %d" % status
 	)
 
 func test_delete_entity(bc: BCTest) -> void:

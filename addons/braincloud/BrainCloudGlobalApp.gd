@@ -8,7 +8,7 @@ func _init(client_ref: BrainCloudClient) -> void:
 	_client_ref = client_ref
 
 func read_properties() -> Dictionary:
-	return await _send(ServiceOperation.READ, {})
+	return await _send(ServiceOperation.READ_PROPERTIES, {})
 
 func read_selected_properties(property_names: Array) -> Dictionary:
 	var data := {

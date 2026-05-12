@@ -170,7 +170,7 @@ func get_child_profiles(include_summary_data: bool) -> Dictionary:
 	return await _send(ServiceOperation.GET_CHILDREN_ENTITIES, data)
 
 func get_identities() -> Dictionary:
-	return await _send(ServiceOperation.READ, {})
+	return await _send(ServiceOperation.GET_IDENTITIES, {})
 
 func get_expired_identities() -> Dictionary:
 	return await _send("GET_EXPIRED_IDENTITIES", {})
@@ -201,7 +201,7 @@ func detach_peer(peer_code: String) -> Dictionary:
 	return await _send(ServiceOperation.DETACH, data)
 
 func get_peer_profiles() -> Dictionary:
-	return await _send(ServiceOperation.READ_SHARED, {})
+	return await _send(ServiceOperation.GET_PEER_PROFILES, {})
 
 func _attach(external_id: String, auth_token: String, auth_type: String) -> Dictionary:
 	var data := {

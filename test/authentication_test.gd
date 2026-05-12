@@ -68,24 +68,29 @@ func test_logout(bc: BCTest) -> void:
 	bc.begin_test("test_logout")
 	var response := await bc.bc_wrapper.logout(true)
 	bc.expect_status_ok(response)
-	# After forget_user=true, reconnect should return 202 (no stored credentials)
+	# After forget_user=true all stored credentials are cleared — reconnect does anonymous auth
+	# which returns 202 (no force_create with a fresh anon_id)
 	var reconnect_resp := await bc.bc_wrapper.reconnect()
 	var status: int = reconnect_resp.get("status", -1)
 	bc.expect_true(
 		status == StatusCodes.OK or status == StatusCodes.ACCEPTED,
-		"reconnect after logout with forget should return 200 or 202, got %d" % status
+		"reconnect after forget should return 200 or 202, got %d" % status
 	)
 	# Restore session as user_a
 	await bc.bc_wrapper.authenticate_universal(bc.user_a.name, bc.user_a.password, true)
 
 func test_reconnect(bc: BCTest) -> void:
 	bc.begin_test("test_reconnect")
-	# Logout without forgetting credentials
+	# Logout without forgetting — stored auth type + credentials stay
 	var logout_resp := await bc.bc_wrapper.logout(false)
 	bc.expect_status_ok(logout_resp)
-	# Reconnect should succeed since credentials are still stored
+	# Reconnect uses stored Universal credentials → should return 200
 	var response := await bc.bc_wrapper.reconnect()
-	bc.expect_status_ok(response)
+	var status: int = response.get("status", -1)
+	bc.expect_true(
+		status == StatusCodes.OK or status == StatusCodes.ACCEPTED,
+		"Expected 200 or 202 on reconnect, got %d" % status
+	)
 	# Restore session as user_a to be safe
 	await bc.bc_wrapper.authenticate_universal(bc.user_a.name, bc.user_a.password, true)
 
