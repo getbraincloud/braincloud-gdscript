@@ -134,6 +134,29 @@ func switch_to_child_profile(child_profile_id: String, child_app_id: String, for
 	}
 	return await _send(ServiceOperation.SWITCH_TO_CHILD_PROFILE, data)
 
+func switch_to_singleton_child_profile(child_app_id: String, force_create: bool) -> Dictionary:
+	var data := {
+		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_GAME_ID: child_app_id,
+		OperationParam.IDENTITY_SERVICE_FORCE_CREATE: force_create
+	}
+	return await _send(ServiceOperation.SWITCH_TO_CHILD_PROFILE, data)
+
+func change_email_identity(old_email: String, password: String, new_email: String, update_contact_email: bool) -> Dictionary:
+	var data := {
+		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_EXTERNAL_ID: old_email,
+		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_AUTHENTICATION_TOKEN: password,
+		"updateContactEmail": update_contact_email,
+		"newEmailAddress": new_email
+	}
+	return await _send("CHANGE_EMAIL_IDENTITY", data)
+
+func get_identity_status(auth_type: String, external_auth_name: String) -> Dictionary:
+	var data := {
+		OperationParam.IDENTITY_SERVICE_AUTHENTICATION_TYPE: auth_type,
+		OperationParam.IDENTITY_SERVICE_EXTERNAL_AUTH_NAME: external_auth_name
+	}
+	return await _send("GET_IDENTITY_STATUS", data)
+
 func switch_to_parent_profile(parent_level_name: String) -> Dictionary:
 	var data := {
 		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_LEVEL_NAME: parent_level_name

@@ -37,17 +37,18 @@ func test_create_and_complete_flow(bc: BCTest) -> void:
 		bc.expect_true(false, "match_id or owner_id missing from create response")
 		return
 
-	# updateMatchSummary
+	# updateMatchSummary (version 0 → 1)
 	bc.begin_test("test_update_match_summary")
 	var summary_resp := await bc.bc_wrapper.async_match_service.update_match_summary(
 		_owner_id, _match_id, 0, {"summary": "test_sum"}
 	)
 	bc.expect_status_ok(summary_resp)
+	var version: int = summary_resp.get("data", {}).get("version", 1)
 
-	# submitTurn
+	# submitTurn (use version returned by updateMatchSummary)
 	bc.begin_test("test_submit_turn")
 	var turn_resp := await bc.bc_wrapper.async_match_service.submit_turn(
-		_owner_id, _match_id, 1, {"map": "level1"}, {},
+		_owner_id, _match_id, version, {"map": "level1"}, {},
 		bc.user_b.profile_id, {"summary": "test_sum"}, {"summary": "test_sum"}
 	)
 	bc.expect_status_ok(turn_resp)

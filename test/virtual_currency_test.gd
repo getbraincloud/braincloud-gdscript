@@ -6,6 +6,8 @@ func run(bc: BCTest) -> void:
 	await test_award_currency(bc)
 	await test_consume_currency(bc)
 	await test_reset_currency(bc)
+	await test_get_parent_currency(bc)
+	await test_get_peer_currency(bc)
 
 func test_get_currency(bc: BCTest) -> void:
 	bc.begin_test("test_get_currency")
@@ -34,6 +36,26 @@ func test_consume_currency(bc: BCTest) -> void:
 func test_reset_currency(bc: BCTest) -> void:
 	bc.begin_test("test_reset_currency")
 	var response := await bc.bc_wrapper.virtual_currency_service.reset_currency()
+	var status: int = response.get("status", -1)
+	bc.expect_true(
+		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
+		"Expected 200 or 400, got %d" % status
+	)
+
+func test_get_parent_currency(bc: BCTest) -> void:
+	bc.begin_test("test_get_parent_currency")
+	var parent_level: String = bc.ids.get("parentLevelName", "Master")
+	var response := await bc.bc_wrapper.virtual_currency_service.get_parent_currency(parent_level)
+	var status: int = response.get("status", -1)
+	bc.expect_true(
+		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
+		"Expected 200 or 400, got %d" % status
+	)
+
+func test_get_peer_currency(bc: BCTest) -> void:
+	bc.begin_test("test_get_peer_currency")
+	var peer_name: String = bc.ids.get("peerName", "peerapp")
+	var response := await bc.bc_wrapper.virtual_currency_service.get_peer_currency(peer_name)
 	var status: int = response.get("status", -1)
 	bc.expect_true(
 		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,

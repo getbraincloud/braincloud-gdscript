@@ -154,7 +154,7 @@ func read_group(group_id: String) -> Dictionary:
 
 func read_group_data(group_id: String) -> Dictionary:
 	var data := {OperationParam.GROUP_ID: group_id}
-	return await _send(ServiceOperation.READ, data)
+	return await _send(ServiceOperation.GROUP_READ_DATA, data)
 
 func read_group_entities(group_id: String) -> Dictionary:
 	var data := {OperationParam.GROUP_ID: group_id}
@@ -165,11 +165,11 @@ func read_group_entity(group_id: String, entity_id: String) -> Dictionary:
 		OperationParam.GROUP_ID: group_id,
 		OperationParam.GROUP_ENTITY_ID: entity_id
 	}
-	return await _send(ServiceOperation.READ_BY_ID, data)
+	return await _send(ServiceOperation.GROUP_READ_ENTITY, data)
 
 func read_group_members(group_id: String) -> Dictionary:
 	var data := {OperationParam.GROUP_ID: group_id}
-	return await _send(ServiceOperation.READ, data)
+	return await _send(ServiceOperation.GROUP_READ_MEMBERS, data)
 
 func reject_group_invitation(group_id: String) -> Dictionary:
 	var data := {OperationParam.GROUP_ID: group_id}
@@ -213,7 +213,7 @@ func update_group_name(group_id: String, name: String) -> Dictionary:
 		OperationParam.GROUP_ID: group_id,
 		OperationParam.GROUP_NAME: name
 	}
-	return await _send(ServiceOperation.UPDATE_NAME, data)
+	return await _send(ServiceOperation.GROUP_UPDATE_NAME, data)
 
 func set_group_open(group_id: String, is_open_group: bool) -> Dictionary:
 	var data := {
