@@ -7,6 +7,12 @@ var _client_ref: BrainCloudClient
 func _init(client_ref: BrainCloudClient) -> void:
 	_client_ref = client_ref
 
+func get_message_boxes() -> Dictionary:
+	return await _send(ServiceOperation.MSG_BOX_GET_MESSAGE_BOXES, {})
+
+func get_message_counts() -> Dictionary:
+	return await _send(ServiceOperation.MSG_BOX_GET_MESSAGE_COUNTS, {})
+
 func delete_messages(msg_box: String, msg_ids: Array) -> Dictionary:
 	var data := {
 		OperationParam.MESSAGING_MESSAGE_BOX: msg_box,
@@ -23,7 +29,7 @@ func get_message_page(context: Dictionary) -> Dictionary:
 func get_message_page_offset(context: String, page_offset: int) -> Dictionary:
 	var data := {
 		OperationParam.GROUP_CONTEXT: context,
-		OperationParam.MESSAGING_MAX_RETURN: page_offset
+		OperationParam.MESSAGING_PAGE_OFFSET: page_offset
 	}
 	return await _send(ServiceOperation.MSG_BOX_GET_MESSAGE_PAGE_OFFSET, data)
 

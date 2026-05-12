@@ -269,6 +269,7 @@ const MESSAGING_PROFILE_IDS := "toProfileIds"
 const MESSAGING_CONTENT_TEXT := "text"
 const MESSAGING_CONTENT := "content"
 const MESSAGING_MAX_RETURN := "maxReturn"
+const MESSAGING_PAGE_OFFSET := "pageOffset"
 const MESSAGING_MSG_IDS := "msgIds"
 const MESSAGING_MARK_AS_READ := "markAsRead"
 
