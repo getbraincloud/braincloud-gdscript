@@ -44,12 +44,15 @@ func setup_bc(server_url: String = "") -> bool:
 
 	var url: String = server_url if server_url.length() > 0 else ids.get("serverUrl", BrainCloudClient.DEFAULT_SERVER_URL)
 	bc_wrapper.wrapper_name = "GDScriptTest"
-	bc_wrapper.init(
-		ids.get("secret", ""),
-		ids.get("appId", ""),
-		ids.get("version", "1.0.0"),
-		url
-	)
+	var app_id: String = ids.get("appId", "")
+	var secret: String = ids.get("secret", "")
+	var child_app_id: String = ids.get("childAppId", "")
+	var child_secret: String = ids.get("childSecret", "")
+	if child_app_id.length() > 0 and child_secret.length() > 0:
+		var secret_map := {app_id: secret, child_app_id: child_secret}
+		bc_wrapper.init_with_apps(secret_map, app_id, ids.get("version", "1.0.0"), url)
+	else:
+		bc_wrapper.init(secret, app_id, ids.get("version", "1.0.0"), url)
 	bc_wrapper.braincloud_client.enable_logging(true)
 
 	bc_wrapper.braincloud_client.authentication_service.clear_saved_profile_id()
