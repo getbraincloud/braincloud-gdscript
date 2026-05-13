@@ -51,28 +51,28 @@ func abandon_match(owner_id: String, match_id: String) -> Dictionary:
 		OperationParam.ASYNC_MATCH_SERVICE_OWNER_ID: owner_id,
 		OperationParam.ASYNC_MATCH_SERVICE_MATCH_ID: match_id
 	}
-	return await _send(ServiceOperation.ABANDON_MATCH, data)
+	return await _send(ServiceOperation.ABANDON, data)
 
 func complete_match(owner_id: String, match_id: String) -> Dictionary:
 	var data := {
 		OperationParam.ASYNC_MATCH_SERVICE_OWNER_ID: owner_id,
 		OperationParam.ASYNC_MATCH_SERVICE_MATCH_ID: match_id
 	}
-	return await _send(ServiceOperation.COMPLETE_MATCH, data)
+	return await _send(ServiceOperation.COMPLETE, data)
 
 func read_match(owner_id: String, match_id: String) -> Dictionary:
 	var data := {
 		OperationParam.ASYNC_MATCH_SERVICE_OWNER_ID: owner_id,
 		OperationParam.ASYNC_MATCH_SERVICE_MATCH_ID: match_id
 	}
-	return await _send(ServiceOperation.READ, data)
+	return await _send(ServiceOperation.READ_MATCH, data)
 
 func read_match_history(owner_id: String, match_id: String) -> Dictionary:
 	var data := {
 		OperationParam.ASYNC_MATCH_SERVICE_OWNER_ID: owner_id,
 		OperationParam.ASYNC_MATCH_SERVICE_MATCH_ID: match_id
 	}
-	return await _send(ServiceOperation.READ_ALL, data)
+	return await _send(ServiceOperation.READ_MATCH_HISTORY, data)
 
 func find_matches() -> Dictionary:
 	return await _send("FIND_MATCHES", {})

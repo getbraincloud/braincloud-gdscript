@@ -25,7 +25,7 @@ func get_social_leaderboard_by_version(leaderboard_id: String, replace_name: boo
 func get_multi_social_leaderboard(leaderboard_ids: Array, leaderboard_results_count: int, replace_name: bool) -> Dictionary:
 	var data := {
 		OperationParam.SOCIAL_LEADERBOARD_SERVICE_LEADERBOARD_IDS: leaderboard_ids,
-		OperationParam.SOCIAL_LEADERBOARD_SERVICE_NUM_RESULTS_TO_RETURN: leaderboard_results_count,
+		OperationParam.SOCIAL_LEADERBOARD_SERVICE_LEADERBOARD_RESULT_COUNT: leaderboard_results_count,
 		OperationParam.SOCIAL_LEADERBOARD_SERVICE_REPLACE_SCORE: replace_name
 	}
 	return await _send(ServiceOperation.GET_MULTI_SOCIAL_LEADERBOARD, data)

@@ -12,3 +12,4 @@
 
 # Test credentials (never commit)
 test/ids.cfg
+test/output.txt

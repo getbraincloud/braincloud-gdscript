@@ -83,28 +83,28 @@ func find_user_by_exact_universal_id(search_text: String) -> Dictionary:
 func find_users_by_exact_name(search_text: String, max_results: int = 10) -> Dictionary:
 	var data := {
 		OperationParam.FRIEND_SERVICE_USER_NAME: search_text,
-		OperationParam.SOCIAL_LEADERBOARD_SERVICE_NUM_RESULTS_TO_RETURN: max_results
+		OperationParam.FRIEND_SERVICE_MAX_RESULTS: max_results
 	}
 	return await _send(ServiceOperation.FIND_USERS_BY_EXACT_NAME, data)
 
 func find_users_by_substr_name(search_text: String, max_results: int) -> Dictionary:
 	var data := {
 		OperationParam.FRIEND_SERVICE_USER_NAME: search_text,
-		OperationParam.SOCIAL_LEADERBOARD_SERVICE_NUM_RESULTS_TO_RETURN: max_results
+		OperationParam.FRIEND_SERVICE_MAX_RESULTS: max_results
 	}
 	return await _send(ServiceOperation.FIND_USERS_BY_SUBSTR_NAME, data)
 
 func find_user_by_name_starting_with(search_text: String, max_results: int) -> Dictionary:
 	var data := {
 		OperationParam.FRIEND_SERVICE_USER_NAME: search_text,
-		OperationParam.SOCIAL_LEADERBOARD_SERVICE_NUM_RESULTS_TO_RETURN: max_results
+		OperationParam.FRIEND_SERVICE_MAX_RESULTS: max_results
 	}
 	return await _send(ServiceOperation.FIND_USERS_BY_NAME_STARTING_WITH, data)
 
 func find_users_by_universal_id_starting_with(search_text: String, max_results: int) -> Dictionary:
 	var data := {
 		OperationParam.FRIEND_SERVICE_USER_NAME: search_text,
-		OperationParam.SOCIAL_LEADERBOARD_SERVICE_NUM_RESULTS_TO_RETURN: max_results
+		OperationParam.FRIEND_SERVICE_MAX_RESULTS: max_results
 	}
 	return await _send(ServiceOperation.FIND_USERS_BY_UNIVERSAL_ID_STARTING_WITH, data)
 
@@ -119,7 +119,7 @@ func get_my_social_info(friend_platform: String, include_summary_data: bool) -> 
 		OperationParam.FRIEND_SERVICE_FRIEND_PLATFORM: friend_platform,
 		OperationParam.FRIEND_SERVICE_INCLUDE_SUMMARY_DATA: include_summary_data
 	}
-	return await _send(ServiceOperation.GET_MY_DATA, data)
+	return await _send(ServiceOperation.GET_MY_SOCIAL_INFO, data)
 
 func read_friend_user_state(friend_id: String) -> Dictionary:
 	var data := {"friendId": friend_id}

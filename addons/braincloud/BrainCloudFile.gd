@@ -24,21 +24,21 @@ func delete_user_file(cloud_path: String, cloud_filename: String) -> Dictionary:
 		OperationParam.PREPARE_USER_UPLOAD_CLOUD_PATH: cloud_path,
 		OperationParam.PREPARE_USER_UPLOAD_CLOUD_FILENAME: cloud_filename
 	}
-	return await _send(ServiceOperation.DELETE, data)
+	return await _send(ServiceOperation.DELETE_USER_FILE, data)
 
 func delete_user_files(cloud_path: String, recursive: bool) -> Dictionary:
 	var data := {
 		OperationParam.PREPARE_USER_UPLOAD_CLOUD_PATH: cloud_path,
 		OperationParam.PREPARE_USER_UPLOAD_RECURSIVE_DELETE: recursive
 	}
-	return await _send(ServiceOperation.DELETE, data)
+	return await _send(ServiceOperation.DELETE_USER_FILES, data)
 
 func get_file_list(cloud_path: String, recursive: bool) -> Dictionary:
 	var data := {
 		OperationParam.PREPARE_USER_UPLOAD_CLOUD_PATH: cloud_path,
 		OperationParam.PREPARE_USER_UPLOAD_RECURSIVE_DELETE: recursive
 	}
-	return await _send(ServiceOperation.GET_FILE_LIST, data)
+	return await _send(ServiceOperation.LIST_USER_FILES, data)
 
 func get_cdn_url_for_file(cloud_path: String, cloud_filename: String) -> Dictionary:
 	var data := {

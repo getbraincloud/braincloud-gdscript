@@ -130,8 +130,13 @@ func leave_group(group_id: String) -> Dictionary:
 	return await _send(ServiceOperation.GROUP_LEAVE, data)
 
 func list_groups(group_type: String) -> Dictionary:
-	var data := {OperationParam.GROUP_TYPE: group_type}
-	return await _send(ServiceOperation.GROUP_LIST_GROUPS, data)
+	var context := {
+		"pagination": {"rowsPerPage": 50, "pageNumber": 1},
+		"searchCriteria": {"groupType": group_type},
+		"sortCriteria": {}
+	}
+	var data := {OperationParam.GROUP_CONTEXT: context}
+	return await _send(ServiceOperation.GROUP_LIST_GROUPS_PAGE, data)
 
 func list_groups_page(context: Dictionary) -> Dictionary:
 	var data := {OperationParam.GROUP_CONTEXT: context}
