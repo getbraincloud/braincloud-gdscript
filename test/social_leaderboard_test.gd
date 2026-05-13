@@ -153,7 +153,7 @@ func test_remove_player_score(bc: BCTest) -> void:
 func test_group_leaderboard_flow(bc: BCTest) -> void:
 	bc.begin_test("test_group_leaderboard_create_group")
 	var create_resp := await bc.bc_wrapper.group_service.create_group(
-		"test", "test", false, {}, {}, {"test": "asdf"}, {}
+		"test", "test", false, {"other": 1}, {}, {"test": "asdf"}, {}
 	)
 	bc.expect_status_ok(create_resp)
 	var group_id: String = create_resp.get("data", {}).get("groupId", "")

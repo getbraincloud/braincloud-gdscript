@@ -45,11 +45,12 @@ func get_user_item(user_item_id: String, include_def: bool) -> Dictionary:
 	}
 	return await _send(ServiceOperation.USER_ITEMS_GET_USER_ITEM, data)
 
-func give_user_item_to(profile_id: String, user_item_id: String, quantity: int, trade_in_item_id: String, trade_in_quantity: int) -> Dictionary:
+func give_user_item_to(profile_id: String, user_item_id: String, quantity: int, trade_in_item_id: String, trade_in_quantity: int, version: int = -1) -> Dictionary:
 	var data := {
 		OperationParam.USER_ITEMS_TO_PROFILE_ID: profile_id,
 		OperationParam.USER_ITEMS_USER_ITEM_ID: user_item_id,
 		OperationParam.USER_ITEMS_QUANTITY: quantity,
+		OperationParam.USER_ITEMS_VERSION: version,
 		"tradeInItemId": trade_in_item_id,
 		"tradeInQuantity": trade_in_quantity
 	}
@@ -81,9 +82,10 @@ func sell_user_item(user_item_id: String, quantity: int, shop_id: String, includ
 	}
 	return await _send(ServiceOperation.USER_ITEMS_SELL_USER_ITEM, data)
 
-func update_user_item_data(user_item_id: String, new_item_data: Dictionary) -> Dictionary:
+func update_user_item_data(user_item_id: String, new_item_data: Dictionary, version: int = -1) -> Dictionary:
 	var data := {
 		OperationParam.USER_ITEMS_USER_ITEM_ID: user_item_id,
+		OperationParam.USER_ITEMS_VERSION: version,
 		"newItemData": new_item_data
 	}
 	return await _send(ServiceOperation.USER_ITEMS_UPDATE_USER_ITEM_DATA, data)

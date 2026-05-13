@@ -75,7 +75,7 @@ func create_group_with_summary_data(name: String, group_type: String, is_open_gr
 		OperationParam.GROUP_DEFAULT_MEMBER_ATTRIBUTES: json_default_member_attributes,
 		OperationParam.GROUP_SUMMARY_DATA: json_summary_data
 	}
-	return await _send(ServiceOperation.GROUP_CREATE_WITH_SUMMARY_DATA, data)
+	return await _send(ServiceOperation.GROUP_CREATE, data)
 
 func create_group_entity(group_id: String, entity_type: String, is_public_membership: bool, json_entity_acl: Dictionary, json_entity_data: Dictionary) -> Dictionary:
 	var data := {

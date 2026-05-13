@@ -173,7 +173,7 @@ func test_group_entity_flow(bc: BCTest) -> void:
 		return
 	bc.begin_test("test_create_group_entity")
 	var create_resp := await bc.bc_wrapper.group_service.create_group_entity(
-		_group_id, "test_entity", true, {"other": 1}, {"entityData": "value"}
+		_group_id, "test_entity", true, {"other": 1, "member": 2}, {"entityData": "value"}
 	)
 	bc.expect_status_ok(create_resp)
 	_entity_id = create_resp.get("data", {}).get("entityId", "")

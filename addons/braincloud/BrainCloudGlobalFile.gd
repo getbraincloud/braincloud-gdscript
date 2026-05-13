@@ -25,7 +25,7 @@ func get_global_file_list(folder_path: String, recurse: bool) -> Dictionary:
 		OperationParam.GLOBAL_FILE_FOLDER_PATH: folder_path,
 		OperationParam.GLOBAL_FILE_RECURSIVE: recurse
 	}
-	return await _send(ServiceOperation.GET_FILE_LIST, data)
+	return await _send("GET_GLOBAL_FILE_LIST", data)
 
 func get_cdn_url_for_file(file_id: String) -> Dictionary:
 	var data := {

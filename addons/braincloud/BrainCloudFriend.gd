@@ -31,7 +31,7 @@ func get_external_id_for_profile_id(profile_id: String, auth_type: String) -> Di
 func read_friend_entity(entity_id: String, friend_id: String) -> Dictionary:
 	var data := {
 		OperationParam.FRIEND_SERVICE_ENTITY_ID: entity_id,
-		OperationParam.FRIEND_SERVICE_PROFILE_ID: friend_id
+		OperationParam.FRIEND_SERVICE_FRIEND_ID: friend_id
 	}
 	return await _send(ServiceOperation.READ_FRIEND_ENTITY, data)
 

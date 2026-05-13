@@ -108,7 +108,7 @@ func delete_entities(entity_type: String, json_delete_criteria: Dictionary) -> D
 func count_entities_where(entity_type: String, where_json: Dictionary) -> Dictionary:
 	var data := {
 		OperationParam.CUSTOM_ENTITY_TYPE_NAME: entity_type,
-		"where": where_json
+		"whereJson": where_json
 	}
 	return await _send(ServiceOperation.CUSTOM_ENTITY_COUNT_ENTITIES_WHERE, data)
 
