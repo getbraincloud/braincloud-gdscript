@@ -86,6 +86,8 @@ func _run_file(path: String) -> void:
 	if not test_instance:
 		return
 
-	print("\n[SUITE] %s" % path.get_file().get_basename())
+	var suite_name := path.get_file().get_basename()
+	print("\n[SUITE] %s" % suite_name)
+	_bc_test.begin_suite(suite_name)
 	if test_instance.has_method("run"):
 		await test_instance.run(_bc_test)

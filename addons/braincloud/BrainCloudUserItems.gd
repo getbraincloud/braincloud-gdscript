@@ -45,12 +45,13 @@ func get_user_item(user_item_id: String, include_def: bool) -> Dictionary:
 	}
 	return await _send(ServiceOperation.USER_ITEMS_GET_USER_ITEM, data)
 
-func give_user_item_to(profile_id: String, user_item_id: String, quantity: int, trade_in_item_id: String, trade_in_quantity: int, version: int = -1) -> Dictionary:
+func give_user_item_to(profile_id: String, user_item_id: String, quantity: int, trade_in_item_id: String, trade_in_quantity: int, version: int = -1, immediate: bool = true) -> Dictionary:
 	var data := {
 		OperationParam.USER_ITEMS_TO_PROFILE_ID: profile_id,
 		OperationParam.USER_ITEMS_USER_ITEM_ID: user_item_id,
 		OperationParam.USER_ITEMS_QUANTITY: quantity,
 		OperationParam.USER_ITEMS_VERSION: version,
+		OperationParam.USER_ITEMS_IMMEDIATE: immediate,
 		"tradeInItemId": trade_in_item_id,
 		"tradeInQuantity": trade_in_quantity
 	}

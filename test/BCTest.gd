@@ -43,16 +43,17 @@ func setup_bc(server_url: String = "") -> bool:
 		return false
 
 	var url: String = server_url if server_url.length() > 0 else ids.get("serverUrl", BrainCloudClient.DEFAULT_SERVER_URL)
-	bc_wrapper.wrapper_name = "GDScriptTest"
 	var app_id: String = ids.get("appId", "")
 	var secret: String = ids.get("secret", "")
+	var version: String = ids.get("version", "")
 	var child_app_id: String = ids.get("childAppId", "")
 	var child_secret: String = ids.get("childSecret", "")
+	bc_wrapper.wrapper_name = "GDScriptTest"
 	if child_app_id.length() > 0 and child_secret.length() > 0:
 		var secret_map := {app_id: secret, child_app_id: child_secret}
-		bc_wrapper.init_with_apps(secret_map, app_id, ids.get("version", "1.0.0"), url)
+		bc_wrapper.init_with_apps(secret_map, app_id, version, url)
 	else:
-		bc_wrapper.init(secret, app_id, ids.get("version", "1.0.0"), url)
+		bc_wrapper.init(secret, app_id, version, url)
 	bc_wrapper.braincloud_client.enable_logging(true)
 
 	bc_wrapper.braincloud_client.authentication_service.clear_saved_profile_id()
@@ -90,25 +91,47 @@ func dispose() -> void:
 
 var _pass_count: int = 0
 var _fail_count: int = 0
+var _current_suite: String = ""
 var _current_test: String = ""
+var _failed_tests: Array = []
+
+func begin_suite(suite_name: String) -> void:
+	_current_suite = suite_name
 
 func begin_test(test_name: String) -> void:
 	_current_test = test_name
 	print("  [TEST] %s" % test_name)
+
+func _fail_key() -> String:
+	return "[%s] %s" % [_current_suite, _current_test]
 
 func expect_eq(actual, expected, msg: String = "") -> void:
 	if actual == expected:
 		_pass_count += 1
 	else:
 		_fail_count += 1
+		var key := _fail_key()
+		if not _failed_tests.has(key):
+			_failed_tests.append(key)
 		push_error("  FAIL [%s]: expected %s == %s. %s" % [_current_test, str(actual), str(expected), msg])
 
 func expect_status_ok(response: Dictionary) -> void:
 	var status: int = response.get("status", -1)
+	var detail := _response_detail(response, status)
 	expect_true(
 		status == StatusCodes.OK or status == StatusCodes.ACCEPTED,
-		"Expected status 200 or 202, got %d" % status
+		"Expected status 200 or 202, got %d%s" % [status, detail]
 	)
+
+func _response_detail(response: Dictionary, status: int) -> String:
+	if status == StatusCodes.OK or status == StatusCodes.ACCEPTED:
+		return ""
+	var msg: String = response.get("status_message", "")
+	var reason: int = response.get("reason_code", 0)
+	if msg.is_empty():
+		return ""
+	var short_msg: String = msg.left(120).replace("\n", " ")
+	return "\n    [reason_code=%d] %s" % [reason, short_msg]
 
 func expect_status(response: Dictionary, expected_status: int) -> void:
 	expect_eq(response.get("status", -1), expected_status, "Expected status %d" % expected_status)
@@ -118,6 +141,9 @@ func expect_has_key(response: Dictionary, key: String) -> void:
 		_pass_count += 1
 	else:
 		_fail_count += 1
+		var fail_key := _fail_key()
+		if not _failed_tests.has(fail_key):
+			_failed_tests.append(fail_key)
 		push_error("  FAIL [%s]: response missing key '%s'" % [_current_test, key])
 
 func expect_true(condition: bool, msg: String = "") -> void:
@@ -125,6 +151,9 @@ func expect_true(condition: bool, msg: String = "") -> void:
 		_pass_count += 1
 	else:
 		_fail_count += 1
+		var key := _fail_key()
+		if not _failed_tests.has(key):
+			_failed_tests.append(key)
 		push_error("  FAIL [%s]: expected true. %s" % [_current_test, msg])
 
 func expect_false(condition: bool, msg: String = "") -> void:
@@ -132,3 +161,7 @@ func expect_false(condition: bool, msg: String = "") -> void:
 
 func print_summary() -> void:
 	print("\n=== Test Summary: %d passed, %d failed ===" % [_pass_count, _fail_count])
+	if _failed_tests.size() > 0:
+		print("\nFailed tests:")
+		for t in _failed_tests:
+			print("  - %s" % t)

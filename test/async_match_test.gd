@@ -98,7 +98,7 @@ func test_create_match_with_initial_turn(bc: BCTest) -> void:
 
 func test_complete_match_with_summary_data(bc: BCTest) -> void:
 	bc.begin_test("test_complete_match_with_summary_data")
-	var opponents := [bc.user_a.profile_id, bc.user_b.profile_id]
+	var opponents := [bc.user_b.profile_id]
 	var create_resp := await bc.bc_wrapper.async_match_service.create_match(opponents, {})
 	bc.expect_status_ok(create_resp)
 	var match_data: Dictionary = create_resp.get("data", {})
@@ -121,7 +121,7 @@ func test_complete_match_with_summary_data(bc: BCTest) -> void:
 
 func test_abandon_match_with_summary_data(bc: BCTest) -> void:
 	bc.begin_test("test_abandon_match_with_summary_data")
-	var opponents := [bc.user_a.profile_id, bc.user_b.profile_id]
+	var opponents := [bc.user_b.profile_id]
 	var create_resp := await bc.bc_wrapper.async_match_service.create_match(opponents, {})
 	bc.expect_status_ok(create_resp)
 	var match_data: Dictionary = create_resp.get("data", {})
