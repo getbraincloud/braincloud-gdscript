@@ -43,10 +43,16 @@ func connect_ws(endpoint: Dictionary, auth: Dictionary) -> void:
 	var url := "%s://%s:%d/?%s" % [scheme, host, port, "&".join(query_parts)]
 	_ws.handshake_headers = header_list
 
-	var err := _ws.connect_to_url(url, TLSOptions.client_unsafe())
+	print("[RTTComms] Connecting to: %s" % url)
+
+	# Use client_unsafe() to skip TLS cert verification for internal servers.
+	# Internal brainCloud servers use GoDaddy certs that Godot's mbedTLS may not trust.
+	var tls_opts := TLSOptions.client_unsafe() if ssl else null
+	var err := _ws.connect_to_url(url, tls_opts)
 	if err != OK:
 		_state = _State.DISCONNECTED
 		_pending_emit = {"status": 900, "reason_code": 0, "status_message": "RTT WebSocket connect_to_url failed: %d" % err}
+		print("[RTTComms] connect_to_url error: %d" % err)
 
 func disconnect_ws() -> void:
 	if _ws != null:
@@ -93,8 +99,7 @@ func _process(delta: float) -> void:
 				_send_heartbeat()
 		while _ws.get_available_packet_count() > 0:
 			var pkt := _ws.get_packet()
-			if _ws.was_string_packet():
-				_on_recv(pkt.get_string_from_utf8())
+			_on_recv(pkt.get_string_from_utf8())
 	elif ws_state == WebSocketPeer.STATE_CLOSED:
 		if _state != _State.DISCONNECTED:
 			_state = _State.DISCONNECTED

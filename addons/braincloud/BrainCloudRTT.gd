@@ -66,6 +66,24 @@ func deregister_rtt_event_callback() -> void:
 	_event_callback = Callable()
 	_rtt_comms.deregister_event_callback("event")
 
+func register_rtt_lobby_callback(cb: Callable) -> void:
+	_rtt_comms.register_event_callback("lobby", cb)
+
+func deregister_rtt_lobby_callback() -> void:
+	_rtt_comms.deregister_event_callback("lobby")
+
+func register_rtt_chat_callback(cb: Callable) -> void:
+	_rtt_comms.register_event_callback("chat", cb)
+
+func deregister_rtt_chat_callback() -> void:
+	_rtt_comms.deregister_event_callback("chat")
+
+func register_rtt_presence_callback(cb: Callable) -> void:
+	_rtt_comms.register_event_callback("presence", cb)
+
+func deregister_rtt_presence_callback() -> void:
+	_rtt_comms.deregister_event_callback("presence")
+
 func set_rtt_heart_beat_seconds(secs: int) -> void:
 	_heart_beat_seconds = secs
 	_rtt_comms.set_heart_beat_seconds(secs)

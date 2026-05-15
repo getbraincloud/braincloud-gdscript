@@ -66,8 +66,22 @@ func _run_tests() -> void:
 		quit(1)
 		return
 
+	# Optional: --suite rtt_test  (comma-separated, no .gd extension needed)
+	var filter := ""
+	var args := OS.get_cmdline_user_args()
+	var suite_idx := args.find("--suite")
+	if suite_idx >= 0 and suite_idx + 1 < args.size():
+		filter = args[suite_idx + 1]
+
 	for test_path in TEST_FILES:
-		await _run_file(test_path)
+		var matches := filter.is_empty()
+		if not matches:
+			for f in filter.split(","):
+				if test_path.contains(f.strip_edges()):
+					matches = true
+					break
+		if matches:
+			await _run_file(test_path)
 
 	_bc_test.print_summary()
 	_total_pass = _bc_test._pass_count

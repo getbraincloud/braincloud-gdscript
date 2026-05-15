@@ -21,13 +21,14 @@ func find_lobby(lobby_type: String, rating: int, max_steps: int, algo: Dictionar
 	}
 	return await _send(ServiceOperation.LOBBY_FIND, data)
 
-func find_or_create_lobby(lobby_type: String, rating: int, max_steps: int, algo: Dictionary, filter_json: Dictionary, is_ready: bool, extra_json: Dictionary, team_code: String, other_user_cx_ids: Array) -> Dictionary:
+func find_or_create_lobby(lobby_type: String, rating: int, max_steps: int, algo: Dictionary, filter_json: Dictionary, settings: Dictionary, is_ready: bool, extra_json: Dictionary, team_code: String, other_user_cx_ids: Array) -> Dictionary:
 	var data := {
 		OperationParam.LOBBY_TYPE: lobby_type,
 		OperationParam.LOBBY_RATING: rating,
 		OperationParam.LOBBY_MAX_STEPS: max_steps,
 		OperationParam.LOBBY_ALGO: algo,
 		OperationParam.LOBBY_FILTER_JSON: filter_json,
+		OperationParam.LOBBY_SETTINGS: settings,
 		OperationParam.LOBBY_IS_READY: is_ready,
 		OperationParam.LOBBY_EXTRA_JSON: extra_json,
 		OperationParam.LOBBY_TEAM: team_code,
@@ -35,13 +36,14 @@ func find_or_create_lobby(lobby_type: String, rating: int, max_steps: int, algo:
 	}
 	return await _send(ServiceOperation.LOBBY_FIND_OR_CREATE, data)
 
-func find_or_create_lobby_with_ping_data(lobby_type: String, rating: int, max_steps: int, algo: Dictionary, filter_json: Dictionary, is_ready: bool, extra_json: Dictionary, team_code: String, other_user_cx_ids: Array) -> Dictionary:
+func find_or_create_lobby_with_ping_data(lobby_type: String, rating: int, max_steps: int, algo: Dictionary, filter_json: Dictionary, settings: Dictionary, is_ready: bool, extra_json: Dictionary, team_code: String, other_user_cx_ids: Array) -> Dictionary:
 	var data := {
 		OperationParam.LOBBY_TYPE: lobby_type,
 		OperationParam.LOBBY_RATING: rating,
 		OperationParam.LOBBY_MAX_STEPS: max_steps,
 		OperationParam.LOBBY_ALGO: algo,
 		OperationParam.LOBBY_FILTER_JSON: filter_json,
+		OperationParam.LOBBY_SETTINGS: settings,
 		OperationParam.LOBBY_IS_READY: is_ready,
 		OperationParam.LOBBY_EXTRA_JSON: extra_json,
 		OperationParam.LOBBY_TEAM: team_code,
@@ -115,7 +117,7 @@ func send_signal(lobby_id: String, signal_data: Dictionary) -> Dictionary:
 func switch_team(lobby_id: String, to_team_code: String) -> Dictionary:
 	var data := {
 		OperationParam.LOBBY_ID: lobby_id,
-		OperationParam.LOBBY_TEAM: to_team_code
+		OperationParam.LOBBY_TO_TEAM_CODE: to_team_code
 	}
 	return await _send(ServiceOperation.LOBBY_SWITCH_TEAM, data)
 
