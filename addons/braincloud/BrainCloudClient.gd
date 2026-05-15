@@ -17,6 +17,9 @@ var _comms: BrainCloudComms = null
 var comms: BrainCloudComms:
 	get: return _comms
 
+var _rtt_comms: BrainCloudRTTComms = null
+var _relay_comms: BrainCloudRelayComms = null
+
 # Services
 var authentication_service: BrainCloudAuthentication = null
 var entity_service: BrainCloudEntity = null
@@ -68,6 +71,12 @@ func _init_services() -> void:
 	_comms = BrainCloudComms.new(self)
 	add_child(_comms)
 
+	_rtt_comms = BrainCloudRTTComms.new(self)
+	add_child(_rtt_comms)
+
+	_relay_comms = BrainCloudRelayComms.new(self)
+	add_child(_relay_comms)
+
 	authentication_service = BrainCloudAuthentication.new(self)
 	entity_service = BrainCloudEntity.new(self)
 	global_entity_service = BrainCloudGlobalEntity.new(self)
@@ -108,8 +117,8 @@ func _init_services() -> void:
 	group_file_service = BrainCloudGroupFile.new(self)
 	lobby_service = BrainCloudLobby.new(self)
 	chat_service = BrainCloudChat.new(self)
-	rtt_service = BrainCloudRTT.new(self)
-	relay_service = BrainCloudRelay.new(self)
+	rtt_service = BrainCloudRTT.new(self, _rtt_comms)
+	relay_service = BrainCloudRelay.new(self, _relay_comms)
 
 func initialize(secret_key: String, app_id: String, app_version: String, server_url: String = DEFAULT_SERVER_URL) -> void:
 	var error := _initialize_helper(server_url, secret_key, app_id, app_version)

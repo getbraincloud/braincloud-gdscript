@@ -12,6 +12,9 @@ func run(bc: BCTest) -> void:
 	await test_complete_match_with_summary_data(bc)
 	await test_abandon_match_with_summary_data(bc)
 
+func _make_opponents(bc: BCTest) -> Array:
+	return [{"id": bc.user_b.profile_id, "platform": "BC"}]
+
 func test_find_matches(bc: BCTest) -> void:
 	bc.begin_test("test_find_matches")
 	var response := await bc.bc_wrapper.async_match_service.find_matches()
@@ -27,8 +30,7 @@ func test_find_complete_matches(bc: BCTest) -> void:
 func test_create_and_complete_flow(bc: BCTest) -> void:
 	# createMatch
 	bc.begin_test("test_create_match")
-	var opponents := [bc.user_b.profile_id]
-	var create_resp := await bc.bc_wrapper.async_match_service.create_match(opponents, {})
+	var create_resp := await bc.bc_wrapper.async_match_service.create_match(_make_opponents(bc), {})
 	bc.expect_status_ok(create_resp)
 	var match_data: Dictionary = create_resp.get("data", {})
 	_match_id = match_data.get("matchId", "")
@@ -67,9 +69,8 @@ func test_create_and_complete_flow(bc: BCTest) -> void:
 
 func test_create_match_with_initial_turn(bc: BCTest) -> void:
 	bc.begin_test("test_create_match_with_initial_turn")
-	var opponents := [bc.user_b.profile_id]
 	var create_resp := await bc.bc_wrapper.async_match_service.create_match_with_initial_turn(
-		opponents, {"matchStateData": "test"}, {}, bc.user_b.profile_id, {"summary": "sum"}
+		_make_opponents(bc), {"matchStateData": "test"}, {}, bc.user_b.profile_id, {"summary": "sum"}
 	)
 	bc.expect_status_ok(create_resp)
 	var match_data: Dictionary = create_resp.get("data", {})
@@ -98,8 +99,7 @@ func test_create_match_with_initial_turn(bc: BCTest) -> void:
 
 func test_complete_match_with_summary_data(bc: BCTest) -> void:
 	bc.begin_test("test_complete_match_with_summary_data")
-	var opponents := [bc.user_b.profile_id]
-	var create_resp := await bc.bc_wrapper.async_match_service.create_match(opponents, {})
+	var create_resp := await bc.bc_wrapper.async_match_service.create_match(_make_opponents(bc), {})
 	bc.expect_status_ok(create_resp)
 	var match_data: Dictionary = create_resp.get("data", {})
 	var match_id: String = match_data.get("matchId", "")
@@ -121,8 +121,7 @@ func test_complete_match_with_summary_data(bc: BCTest) -> void:
 
 func test_abandon_match_with_summary_data(bc: BCTest) -> void:
 	bc.begin_test("test_abandon_match_with_summary_data")
-	var opponents := [bc.user_b.profile_id]
-	var create_resp := await bc.bc_wrapper.async_match_service.create_match(opponents, {})
+	var create_resp := await bc.bc_wrapper.async_match_service.create_match(_make_opponents(bc), {})
 	bc.expect_status_ok(create_resp)
 	var match_data: Dictionary = create_resp.get("data", {})
 	var match_id: String = match_data.get("matchId", "")
