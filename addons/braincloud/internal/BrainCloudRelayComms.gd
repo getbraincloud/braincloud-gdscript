@@ -30,6 +30,10 @@ var _net_id: int = -1
 var _relay_callback: Callable
 var _system_callback: Callable
 var _pending_emit: Dictionary = {}
+var _ping_ms: int = -1
+var _ping_timer: float = 0.0
+var _ping_interval: float = 2.0
+var _ping_sent_at: float = -1.0
 
 func _init(client_ref: BrainCloudClient) -> void:
 	_client_ref = client_ref
@@ -46,7 +50,8 @@ func connect_relay(host: String, port: int, use_ssl: bool, cx_id: String, lobby_
 	var scheme := "wss" if use_ssl else "ws"
 	var url := "%s://%s:%d" % [scheme, host, port]
 
-	var err := _ws.connect_to_url(url, TLSOptions.client_unsafe())
+	var tls_opts := TLSOptions.client_unsafe() if use_ssl else null
+	var err := _ws.connect_to_url(url, tls_opts)
 	if err != OK:
 		_state = _State.DISCONNECTED
 		_pending_emit = {"status": 900, "reason_code": 0, "status_message": "Relay WebSocket connect_to_url failed: %d" % err}
@@ -55,12 +60,17 @@ func disconnect_relay() -> void:
 	if _ws != null:
 		_ws.close()
 	_state = _State.DISCONNECTED
+	_ping_ms = -1
+	_ping_sent_at = -1.0
 
 func is_relay_connected() -> bool:
 	return _state == _State.CONNECTED
 
 func get_net_id() -> int:
 	return _net_id
+
+func get_ping() -> int:
+	return _ping_ms
 
 func register_relay_callback(cb: Callable) -> void:
 	_relay_callback = cb
@@ -80,7 +90,7 @@ func send_relay(data: PackedByteArray, to_net_id: int, _reliable: bool, _ordered
 	var header := PackedByteArray([CL2RS_RELAY, to_net_id & 0xFF])
 	_send_with_size_prefix(header + data)
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _pending_emit.is_empty():
 		var resp := _pending_emit
 		_pending_emit = {}
@@ -97,6 +107,11 @@ func _process(_delta: float) -> void:
 		if _state == _State.CONNECTING:
 			_state = _State.HANDSHAKE
 			_send_connect_packet()
+		elif _state == _State.CONNECTED:
+			_ping_timer += delta
+			if _ping_timer >= _ping_interval:
+				_ping_timer = 0.0
+				_send_ping()
 		while _ws.get_available_packet_count() > 0:
 			_on_recv(_ws.get_packet())
 	elif ws_state == WebSocketPeer.STATE_CLOSED:
@@ -104,6 +119,10 @@ func _process(_delta: float) -> void:
 			_state = _State.DISCONNECTED
 			if _net_id == -1:
 				connect_result.emit({"status": 900, "reason_code": 0, "status_message": "Relay WebSocket closed before handshake complete"})
+
+func _send_ping() -> void:
+	_ping_sent_at = Time.get_ticks_msec()
+	_send_with_size_prefix(PackedByteArray([CL2RS_PING]))
 
 func _send_connect_packet() -> void:
 	var json_str := JSON.stringify({
@@ -132,13 +151,16 @@ func _on_recv(data: PackedByteArray) -> void:
 		RS2CL_RSMG:
 			_on_rsmg(data)
 		RS2CL_RELAY:
-			if _relay_callback.is_valid():
-				_relay_callback.call(data.slice(3))
+			if _relay_callback.is_valid() and data.size() > 3:
+				var sender_net_id := data[3]
+				_relay_callback.call(sender_net_id, data.slice(4))
 		RS2CL_DISCONNECT:
 			_state = _State.DISCONNECTED
 			_ws.close()
 		RS2CL_PONG:
-			pass
+			if _ping_sent_at >= 0.0:
+				_ping_ms = int(Time.get_ticks_msec() - _ping_sent_at)
+				_ping_sent_at = -1.0
 		RS2CL_ACK:
 			pass
 

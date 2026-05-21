@@ -2,6 +2,13 @@
 class_name BrainCloudRelay
 extends RefCounted
 
+const TO_ALL_PLAYERS := 0xFF
+
+const CHANNEL_HIGH_PRIORITY_1 := 0
+const CHANNEL_HIGH_PRIORITY_2 := 1
+const CHANNEL_NORMAL_PRIORITY  := 2
+const CHANNEL_LOW_PRIORITY     := 3
+
 var _client_ref: BrainCloudClient
 var _relay_comms: BrainCloudRelayComms
 var _success_cb: Callable
@@ -53,3 +60,9 @@ func register_system_callback(cb: Callable) -> void:
 
 func deregister_system_callback() -> void:
 	_relay_comms.deregister_system_callback()
+
+func get_net_id() -> int:
+	return _relay_comms.get_net_id()
+
+func get_ping() -> int:
+	return _relay_comms.get_ping()

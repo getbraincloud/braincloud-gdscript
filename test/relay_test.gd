@@ -20,7 +20,7 @@ func test_not_connected_initially(bc: BCTest) -> void:
 
 func test_register_relay_callback(bc: BCTest) -> void:
 	bc.begin_test("relay_register_relay_callback")
-	bc.bc_wrapper.relay_service.register_relay_callback(func(_data): pass)
+	bc.bc_wrapper.relay_service.register_relay_callback(func(_net_id, _data): pass)
 	bc.expect_true(true, "register_relay_callback should not crash")
 	bc.bc_wrapper.relay_service.deregister_relay_callback()
 	bc.expect_true(true, "deregister_relay_callback should not crash")

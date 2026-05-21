@@ -113,6 +113,18 @@ var relay_service: BrainCloudRelay:
 func _ready() -> void:
 	_client = BrainCloudClient.new()
 	add_child(_client)
+	_auto_init_from_project_settings()
+
+func _auto_init_from_project_settings() -> void:
+	var app_id: String = ProjectSettings.get_setting("braincloud/config/app_id", "")
+	var app_secret: String = ProjectSettings.get_setting("braincloud/config/app_secret", "")
+	if app_id.is_empty() or app_secret.is_empty():
+		return
+	var app_version: String = ProjectSettings.get_setting("braincloud/config/app_version", "1.0.0")
+	var server_url: String = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
+	var enable_logging: bool = ProjectSettings.get_setting("braincloud/debug/enable_logging", false)
+	_client.enable_logging(enable_logging)
+	init(app_secret, app_id, app_version, server_url)
 
 func is_initialized() -> bool:
 	return _client.is_initialized()
