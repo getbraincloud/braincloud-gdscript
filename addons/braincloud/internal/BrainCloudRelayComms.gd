@@ -31,7 +31,7 @@ var _system_callback: Callable
 var _pending_emit: Dictionary = {}
 var _ping_ms: int = -1
 var _ping_timer: float = 0.0
-var _ping_interval: float = 2.0
+var _ping_interval: float = 1.0
 var _ping_sent_at: float = -1.0
 
 func _init(client_ref: BrainCloudClient) -> void:
@@ -87,10 +87,42 @@ func register_system_callback(cb: Callable) -> void:
 func deregister_system_callback() -> void:
 	_system_callback = Callable()
 
-func send_relay(data: PackedByteArray, to_net_id: int, _reliable: bool, _ordered: bool, _channel: int) -> void:
+const _MAX_PLAYERS := 40
+
+func send_relay(data: PackedByteArray, to_net_id: int, reliable: bool, ordered: bool, channel: int) -> void:
 	if _state != _State.CONNECTED:
 		return
-	var header := PackedByteArray([CL2RS_RELAY, to_net_id & 0xFF])
+
+	# rh: bit15=reliable, bit14=ordered, bits13-12=channel, bits11-0=packetId(0)
+	var rh: int = 0
+	if reliable: rh |= 0x8000
+	if ordered:  rh |= 0x4000
+	rh |= (channel & 0x3) << 12
+
+	# 40-bit player mask: bit N = send to player N.  0xFF (TO_ALL_PLAYERS) → all 40 bits.
+	var player_mask: int
+	if to_net_id >= _MAX_PLAYERS:
+		player_mask = (1 << _MAX_PLAYERS) - 1
+	else:
+		player_mask = 1 << to_net_id
+
+	# Invert bit order to match server encoding, then shift left 8
+	var pm: int = 0
+	for i in range(_MAX_PLAYERS):
+		pm |= ((player_mask >> (_MAX_PLAYERS - 1 - i)) & 1) << i
+	pm = (pm << 8) & 0x0000FFFFFFFFFF00
+
+	var pm0: int = (pm >> 32) & 0xFFFF
+	var pm1: int = (pm >> 16) & 0xFFFF
+	var pm2: int =  pm        & 0xFFFF
+
+	var header := PackedByteArray([
+		CL2RS_RELAY,
+		(rh  >> 8) & 0xFF,  rh  & 0xFF,
+		(pm0 >> 8) & 0xFF,  pm0 & 0xFF,
+		(pm1 >> 8) & 0xFF,  pm1 & 0xFF,
+		(pm2 >> 8) & 0xFF,  pm2 & 0xFF
+	])
 	_send_with_size_prefix(header + data)
 
 func _process(delta: float) -> void:
@@ -133,7 +165,10 @@ func _process(delta: float) -> void:
 
 func _send_ping() -> void:
 	_ping_sent_at = Time.get_ticks_msec()
-	_send_with_size_prefix(PackedByteArray([CL2RS_PING]))
+	# Ping packet includes last known RTT as 2-byte big-endian uint16 (C++ RelayComms protocol).
+	# Use 999 until the first pong comes back.
+	var last_ping := clampi(_ping_ms if _ping_ms >= 0 else 999, 0, 999)
+	_send_with_size_prefix(PackedByteArray([CL2RS_PING, (last_ping >> 8) & 0xFF, last_ping & 0xFF]))
 
 func _send_connect_packet() -> void:
 	var json_str := JSON.stringify({
@@ -162,9 +197,11 @@ func _on_recv(data: PackedByteArray) -> void:
 		RS2CL_RSMG:
 			_on_rsmg(data)
 		RS2CL_RELAY:
-			if _relay_callback.is_valid() and data.size() > 3:
-				var sender_net_id := data[3]
-				_relay_callback.call(sender_net_id, data.slice(4))
+			# Header layout: [0-1]=size, [2]=control, [3-4]=rh, [5-6]=pm0, [7-8]=pm1, [9-10]=pm2
+			# Server sets pm2 low byte = sender netId when forwarding to recipients.
+			if _relay_callback.is_valid() and data.size() >= 11:
+				var sender_net_id := data[10]
+				_relay_callback.call(sender_net_id, data.slice(11))
 		RS2CL_DISCONNECT:
 			_state = _State.DISCONNECTED
 			_ws.close()
@@ -190,9 +227,10 @@ func _on_rsmg(data: PackedByteArray) -> void:
 	var op: String = msg.get("op", "")
 
 	print("[RelayComms] RSMG op='%s' msg=%s" % [op, str(msg)])
-	if op == "CONNECT":
+	if op == "CONNECT" and _state == _State.HANDSHAKE:
 		_net_id = msg.get("netId", -1)
 		_state = _State.CONNECTED
+		_send_ping()
 		connect_result.emit({"status": 200, "data": msg})
 	elif _system_callback.is_valid():
 		_system_callback.call(msg)

@@ -27,8 +27,8 @@ func run(bc: BCTest) -> void:
 	await test_relay_find_lobby_and_room_ready(bc)
 	await test_relay_connect_ws(bc)
 	await test_relay_net_id_assigned(bc)
-	await test_relay_ping_measured(bc)
 	await test_relay_send_to_self(bc)
+	await test_relay_ping_measured(bc)
 	await test_relay_disconnect_clean(bc)
 	await test_relay_cleanup(bc)
 
@@ -110,8 +110,9 @@ func test_relay_find_lobby_and_room_ready(bc: BCTest) -> void:
 		if not all_ops.has(op):
 			all_ops.append(op)
 			print("[relay_test] RTT lobby op: %s" % op)
-		if op == "ROOM_READY":
-			room_ready[0] = msg.get("data", {})
+		if op == "ROOM_READY" or op == "ROOM_ASSIGNED":
+			if room_ready[0].is_empty():
+				room_ready[0] = msg.get("data", {})
 	)
 
 	var algo := {"strategy": "ranged-absolute", "alignment": "center", "ranges": [1000]}
@@ -135,7 +136,7 @@ func test_relay_find_lobby_and_room_ready(bc: BCTest) -> void:
 
 	if timed_out[0]:
 		bc.expect_true(false,
-			"timed out waiting for ROOM_READY after %.0fs (ops seen: %s) — check that '%s' has a relay server with everyReadyMinNum=1" % [_ROOM_READY_TIMEOUT, str(all_ops), _relay_lobby_type])
+			"timed out waiting for ROOM_ASSIGNED/ROOM_READY after %.0fs (ops seen: %s) — check that '%s' has a relay server with everyReadyMinNum=1" % [_ROOM_READY_TIMEOUT, str(all_ops), _relay_lobby_type])
 		if not _lobby_id.is_empty():
 			await bc.bc_wrapper.lobby_service.leave_lobby(_lobby_id)
 			_lobby_id = ""
