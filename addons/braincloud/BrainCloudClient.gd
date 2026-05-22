@@ -3,7 +3,7 @@ class_name BrainCloudClient
 extends Node
 
 const DEFAULT_SERVER_URL := "https://api.braincloudservers.com/dispatcherv2"
-const BRAINCLOUD_VERSION := "1.0.0"
+const BRAINCLOUD_VERSION := "5.9.0"
 
 var _app_version: String = ""
 var _language_code: String = "en"
