@@ -49,6 +49,8 @@ var user_items_service: BrainCloudUserItems:
 	get: return _client.user_items_service
 var script_service: BrainCloudScript:
 	get: return _client.script_service
+var campaign_service: BrainCloudCampaign:
+	get: return _client.campaign_service
 var match_making_service: BrainCloudMatchMaking:
 	get: return _client.match_making_service
 var one_way_match_service: BrainCloudOneWayMatch:
@@ -279,6 +281,9 @@ func _on_authenticated(response: Dictionary) -> void:
 	var profile_id: String = data.get("profileId", "")
 	if profile_id.length() > 0:
 		set_stored_profile_id(profile_id)
+
+func getCampaignService() -> BrainCloudCampaign:
+	return campaign_service
 
 func _init_profile_for_authenticate() -> void:
 	if _always_allow_profile_switch:

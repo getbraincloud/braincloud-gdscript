@@ -34,6 +34,7 @@ var identity_service: BrainCloudIdentity = null
 var item_catalog_service: BrainCloudItemCatalog = null
 var user_items_service: BrainCloudUserItems = null
 var script_service: BrainCloudScript = null
+var campaign_service: BrainCloudCampaign = null
 var match_making_service: BrainCloudMatchMaking = null
 var one_way_match_service: BrainCloudOneWayMatch = null
 var playback_stream_service: BrainCloudPlaybackStream = null
@@ -90,6 +91,7 @@ func _init_services() -> void:
 	item_catalog_service = BrainCloudItemCatalog.new(self)
 	user_items_service = BrainCloudUserItems.new(self)
 	script_service = BrainCloudScript.new(self)
+	campaign_service = BrainCloudCampaign.new(self)
 	match_making_service = BrainCloudMatchMaking.new(self)
 	one_way_match_service = BrainCloudOneWayMatch.new(self)
 	playback_stream_service = BrainCloudPlaybackStream.new(self)

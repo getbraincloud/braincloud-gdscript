@@ -360,6 +360,7 @@ const USER_ITEMS_IMMEDIATE := "immediate"
 const USER_ITEMS_INCLUDE_DEF := "includeDef"
 const USER_ITEMS_CONTEXT := "context"
 const USER_ITEMS_PAGE_OFFSET := "pageOffset"
+const USER_ITEMS_SERVICE_OPTIONS_JSON := "optionsJson"
 
 # Item Catalog
 const ITEM_CATALOG_CONTEXT := "context"
