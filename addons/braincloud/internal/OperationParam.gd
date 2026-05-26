@@ -297,6 +297,7 @@ const LOBBY_CONNECTION_ID := "cxId"
 const LOBBY_TYPES := "lobbyTypes"
 const LOBBY_CRITERIA := "criteriaJson"
 const LOBBY_ENTRY_ID := "entryId"
+const LOBBY_CONFIG_OVERRIDES := "configOverrides"
 
 # Presence
 const PRESENCE_PLATFORM := "platform"

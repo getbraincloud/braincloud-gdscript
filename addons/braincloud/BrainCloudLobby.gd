@@ -64,6 +64,33 @@ func create_lobby(lobby_type: String, rating: int, is_ready: bool, extra_json: D
 	}
 	return await _send(ServiceOperation.LOBBY_CREATE, data)
 
+func create_lobby_with_config(lobby_type: String, rating: int, is_ready: bool, extra_json: Dictionary, team_code: String, settings: Dictionary, config_overrides: Dictionary, other_user_cx_ids: Array = []) -> Dictionary:
+	var data := {
+		OperationParam.LOBBY_TYPE: lobby_type,
+		OperationParam.LOBBY_RATING: rating,
+		OperationParam.LOBBY_SETTINGS: settings,
+		OperationParam.LOBBY_IS_READY: is_ready,
+		OperationParam.LOBBY_EXTRA_JSON: extra_json,
+		OperationParam.LOBBY_TEAM: team_code,
+		OperationParam.LOBBY_CONFIG_OVERRIDES: config_overrides,
+		OperationParam.LOBBY_OTHER_USER_CX_IDS: other_user_cx_ids,
+	}
+	return await _send(ServiceOperation.LOBBY_CREATE_WITH_CONFIG, data)
+
+func create_lobby_with_config_and_ping_data(lobby_type: String, rating: int, is_ready: bool, extra_json: Dictionary, team_code: String, settings: Dictionary, config_overrides: Dictionary, ping_data: Dictionary, other_user_cx_ids: Array = []) -> Dictionary:
+	var data := {
+		OperationParam.LOBBY_TYPE: lobby_type,
+		OperationParam.LOBBY_RATING: rating,
+		OperationParam.LOBBY_SETTINGS: settings,
+		OperationParam.LOBBY_IS_READY: is_ready,
+		OperationParam.LOBBY_EXTRA_JSON: extra_json,
+		OperationParam.LOBBY_TEAM: team_code,
+		OperationParam.LOBBY_CONFIG_OVERRIDES: config_overrides,
+		OperationParam.LOBBY_PING_DATA: ping_data,
+		OperationParam.LOBBY_OTHER_USER_CX_IDS: other_user_cx_ids,
+	}
+	return await _send(ServiceOperation.LOBBY_CREATE_WITH_CONFIG_AND_PING_DATA, data)
+
 func join_lobby(lobby_id: String, is_ready: bool, extra_json: Dictionary, team_code: String, other_user_cx_ids: Array) -> Dictionary:
 	var data := {
 		OperationParam.LOBBY_ID: lobby_id,
