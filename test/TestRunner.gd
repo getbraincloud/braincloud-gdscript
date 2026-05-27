@@ -47,6 +47,7 @@ const TEST_FILES := [
 	"res://test/tournament_test.gd",
 	"res://test/custom_entity_test.gd",
 	"res://test/social_leaderboard_test.gd",
+	"res://test/campaign_test.gd",
 ]
 
 var _bc_test: BCTest = null

@@ -7,6 +7,22 @@ var _client_ref: BrainCloudClient
 func _init(client_ref: BrainCloudClient) -> void:
 	_client_ref = client_ref
 
+## Checks supplied text for profanity.
+##
+## Service Name - Profanity[br]
+## Service Operation - ProfanityCheck
+##
+## @param text The text to check
+## @param languages Array of two-character language codes (e.g. ["en", "fr"])
+## @param flag_email Whether to process email addresses
+## @param flag_phone Whether to process phone numbers
+## @param flag_urls Whether to process URLs
+##
+## Significant error codes:[br]
+## 40421 - WebPurify not configured[br]
+## 40422 - General exception occurred[br]
+## 40423 - WebPurify returned an error (Http status != 200)[br]
+## 40424 - WebPurify not enabled
 func profanity_check(text: String, languages: Array, flag_email: bool, flag_phone: bool, flag_urls: bool) -> Dictionary:
 	var data := {
 		OperationParam.PROFANITY_TEXT: text,
@@ -17,6 +33,23 @@ func profanity_check(text: String, languages: Array, flag_email: bool, flag_phon
 	}
 	return await _send(ServiceOperation.PROFANITY_CHECK, data)
 
+## Replaces the characters of profanity text with a passed character(s).
+##
+## Service Name - Profanity[br]
+## Service Operation - ProfanityReplaceText
+##
+## @param text The text to check
+## @param replace_symbol The text to replace individual profanity characters with
+## @param languages Array of two-character language codes (e.g. ["en", "fr"])
+## @param flag_email Whether to process email addresses
+## @param flag_phone Whether to process phone numbers
+## @param flag_urls Whether to process URLs
+##
+## Significant error codes:[br]
+## 40421 - WebPurify not configured[br]
+## 40422 - General exception occurred[br]
+## 40423 - WebPurify returned an error (Http status != 200)[br]
+## 40424 - WebPurify not enabled
 func profanity_replace_text(text: String, replace_symbol: String, languages: Array, flag_email: bool, flag_phone: bool, flag_urls: bool) -> Dictionary:
 	var data := {
 		OperationParam.PROFANITY_TEXT: text,
@@ -28,6 +61,22 @@ func profanity_replace_text(text: String, replace_symbol: String, languages: Arr
 	}
 	return await _send(ServiceOperation.PROFANITY_REPLACE_TEXT, data)
 
+## Checks supplied text for profanity and returns a list of bad words.
+##
+## Service Name - Profanity[br]
+## Service Operation - ProfanityIdentifyBadWords
+##
+## @param text The text to check
+## @param languages Array of two-character language codes (e.g. ["en", "fr"])
+## @param flag_email Whether to process email addresses
+## @param flag_phone Whether to process phone numbers
+## @param flag_urls Whether to process URLs
+##
+## Significant error codes:[br]
+## 40421 - WebPurify not configured[br]
+## 40422 - General exception occurred[br]
+## 40423 - WebPurify returned an error (Http status != 200)[br]
+## 40424 - WebPurify not enabled
 func profanity_identify_bad_words(text: String, languages: Array, flag_email: bool, flag_phone: bool, flag_urls: bool) -> Dictionary:
 	var data := {
 		OperationParam.PROFANITY_TEXT: text,

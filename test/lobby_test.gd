@@ -12,6 +12,8 @@ func run(bc: BCTest) -> void:
 	await test_find_lobby(bc)
 	await test_find_or_create_lobby(bc)
 	await test_create_lobby(bc)
+	await test_create_lobby_with_config(bc)
+	await test_create_lobby_with_config_and_ping_data(bc)
 	await test_get_lobby_data(bc)
 	await test_update_settings(bc)
 	await test_update_ready(bc)
@@ -197,3 +199,31 @@ func test_cancel_find_request(bc: BCTest) -> void:
 	bc.begin_test("test_cancel_find_request")
 	var response := await bc.bc_wrapper.lobby_service.cancel_find_request(LOBBY_TYPE, "")
 	bc.expect_status_ok(response)
+
+func _config_overrides() -> Dictionary:
+	return {
+		"teams": [
+			{"code": "reserved", "minUsers": 0, "maxUsers": 1, "autoAssign": false},
+			{"code": "all", "minUsers": 6, "maxUsers": 6, "autoAssign": true},
+		]
+	}
+
+func test_create_lobby_with_config(bc: BCTest) -> void:
+	bc.begin_test("test_create_lobby_with_config")
+	var response := await bc.bc_wrapper.lobby_service.create_lobby_with_config(
+		LOBBY_TYPE, 0, true, {}, "all", {}, _config_overrides()
+	)
+	bc.expect_status_ok(response)
+	var lid: String = response.get("data", {}).get("lobbyId", "")
+	if not lid.is_empty():
+		await bc.bc_wrapper.lobby_service.leave_lobby(lid)
+
+func test_create_lobby_with_config_and_ping_data(bc: BCTest) -> void:
+	bc.begin_test("test_create_lobby_with_config_and_ping_data")
+	var response := await bc.bc_wrapper.lobby_service.create_lobby_with_config_and_ping_data(
+		LOBBY_TYPE, 0, true, {}, "all", {}, _config_overrides(), {}
+	)
+	bc.expect_status_ok(response)
+	var lid: String = response.get("data", {}).get("lobbyId", "")
+	if not lid.is_empty():
+		await bc.bc_wrapper.lobby_service.leave_lobby(lid)

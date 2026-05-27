@@ -3,11 +3,8 @@
 ; since the parameters that go here are not all obvious.
 ;
 ; Format:
-;   [section] ; section goes in []
-;   param=value ; assignment
-;
-; Only set parameters that differ from the engine defaults,
-; save to preserve defaults.
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
@@ -15,8 +12,16 @@ config_version=5
 
 config/name="BrainCloud GDScript SDK"
 config/description="brainCloud client SDK for GDScript / Godot 4"
-config/features=PackedStringArray("4.3", "Forward Plus")
+config/features=PackedStringArray("4.5", "Forward Plus")
 config/icon="res://icon.svg"
+
+[autoload]
+
+BrainCloud="*res://addons/braincloud/BrainCloudWrapper.gd"
+
+[dotnet]
+
+project/assembly_name="BrainCloud GDScript SDK"
 
 [editor_plugins]
 

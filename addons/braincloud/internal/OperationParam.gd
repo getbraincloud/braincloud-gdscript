@@ -297,6 +297,7 @@ const LOBBY_CONNECTION_ID := "cxId"
 const LOBBY_TYPES := "lobbyTypes"
 const LOBBY_CRITERIA := "criteriaJson"
 const LOBBY_ENTRY_ID := "entryId"
+const LOBBY_CONFIG_OVERRIDES := "configOverrides"
 
 # Presence
 const PRESENCE_PLATFORM := "platform"
@@ -360,6 +361,7 @@ const USER_ITEMS_IMMEDIATE := "immediate"
 const USER_ITEMS_INCLUDE_DEF := "includeDef"
 const USER_ITEMS_CONTEXT := "context"
 const USER_ITEMS_PAGE_OFFSET := "pageOffset"
+const USER_ITEMS_SERVICE_OPTIONS_JSON := "optionsJson"
 
 # Item Catalog
 const ITEM_CATALOG_CONTEXT := "context"
