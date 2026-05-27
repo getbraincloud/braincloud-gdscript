@@ -7,6 +7,11 @@ var _client_ref: BrainCloudClient
 func _init(client_ref: BrainCloudClient) -> void:
 	_client_ref = client_ref
 
+## Method returns the server time in UTC. This is in UNIX millis time format.
+## For instance 1396378241893 represents 2014-04-01 2:50:41.893 in GMT-4.
+##
+## Service Name - Time[br]
+## Service Operation - Read
 func read_server_time() -> Dictionary:
 	return await _send(ServiceOperation.READ, {})
 

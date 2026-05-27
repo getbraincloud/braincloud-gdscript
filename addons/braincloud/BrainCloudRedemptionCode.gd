@@ -7,6 +7,14 @@ var _client_ref: BrainCloudClient
 func _init(client_ref: BrainCloudClient) -> void:
 	_client_ref = client_ref
 
+## Redeem a code.
+##
+## Service Name - RedemptionCode[br]
+## Service Operation - REDEEM_CODE
+##
+## @param scan_code The code to redeem
+## @param code_type The type of code
+## @param json_custom_redemption_info Optional custom redemption data as a Dictionary
 func use_redemption_code(scan_code: String, code_type: String, json_custom_redemption_info: Dictionary) -> Dictionary:
 	var data := {
 		OperationParam.REDEMPTION_CODE_ID: scan_code,
@@ -15,6 +23,15 @@ func use_redemption_code(scan_code: String, code_type: String, json_custom_redem
 	}
 	return await _send(ServiceOperation.REDEMPTION_CODE_USE, data)
 
+## Invalidates a redemption code.
+##
+## Service Name - RedemptionCode[br]
+## Service Operation - INVALIDATE_CODE
+##
+## @param scan_code The code to invalidate
+## @param code_type The type of code
+## @param invalid_reason_code The reason code for invalidation
+## @param extra_json Optional extra data as a Dictionary
 func invalidate_redemption_code(scan_code: String, code_type: String, invalid_reason_code: String, extra_json: Dictionary) -> Dictionary:
 	var data := {
 		OperationParam.REDEMPTION_CODE_ID: scan_code,
@@ -24,6 +41,15 @@ func invalidate_redemption_code(scan_code: String, code_type: String, invalid_re
 	}
 	return await _send(ServiceOperation.REDEMPTION_CODE_INVALIDATE, data)
 
+## Initiates a custom code redemption.
+##
+## Service Name - RedemptionCode[br]
+## Service Operation - CUSTOM_REDEEM_CODE
+##
+## @param scan_code The code to redeem
+## @param code_type The type of code
+## @param custom_reward_code The custom reward code to apply
+## @param json_custom_redemption_info Optional custom redemption data as a Dictionary
 func custom_redeem_code(scan_code: String, code_type: String, custom_reward_code: String, json_custom_redemption_info: Dictionary) -> Dictionary:
 	var data := {
 		OperationParam.REDEMPTION_CODE_ID: scan_code,

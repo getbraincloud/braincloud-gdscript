@@ -7,6 +7,10 @@ var _client_ref: BrainCloudClient
 func _init(client_ref: BrainCloudClient) -> void:
 	_client_ref = client_ref
 
+## Retrieves the blockchain items owned by the caller.
+##
+## @param integration_id The blockchain integration identifier
+## @param context_json Optional context parameters as a Dictionary
 func get_blockchain_items(integration_id: String, context_json: Dictionary) -> Dictionary:
 	var data := {
 		OperationParam.BLOCK_CHAIN_INTEGRATION_ID: integration_id,
@@ -14,6 +18,10 @@ func get_blockchain_items(integration_id: String, context_json: Dictionary) -> D
 	}
 	return await _send(ServiceOperation.GET_BLOCKCHAIN_ITEMS, data)
 
+## Retrieves the uniqs (unique blockchain tokens) owned by the caller.
+##
+## @param integration_id The blockchain integration identifier
+## @param context_json Optional context parameters as a Dictionary
 func get_uniqs(integration_id: String, context_json: Dictionary) -> Dictionary:
 	var data := {
 		OperationParam.BLOCK_CHAIN_INTEGRATION_ID: integration_id,
@@ -21,6 +29,10 @@ func get_uniqs(integration_id: String, context_json: Dictionary) -> Dictionary:
 	}
 	return await _send(ServiceOperation.GET_UNIQS, data)
 
+## Attaches a blockchain identity (public key) to the user's profile.
+##
+## @param integration_id The blockchain integration identifier
+## @param public_key The user's blockchain public key
 func attach_blockchain_identity(integration_id: String, public_key: String) -> Dictionary:
 	var data := {
 		OperationParam.BLOCK_CHAIN_INTEGRATION_ID: integration_id,
@@ -28,6 +40,9 @@ func attach_blockchain_identity(integration_id: String, public_key: String) -> D
 	}
 	return await _send(ServiceOperation.ATTACH_BLOCKCHAIN_IDENTITY, data)
 
+## Detaches the blockchain identity from the user's profile.
+##
+## @param integration_id The blockchain integration identifier
 func detach_blockchain_identity(integration_id: String) -> Dictionary:
 	var data := {
 		OperationParam.BLOCK_CHAIN_INTEGRATION_ID: integration_id

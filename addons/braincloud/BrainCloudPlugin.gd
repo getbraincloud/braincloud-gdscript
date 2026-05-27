@@ -10,13 +10,14 @@ const _MENU_ITEM     := "brainCloud"
 const _CREDS_PATH    := "res://addons/braincloud/braincloud.cfg"
 
 # ── Brand colours ──────────────────────────────────────────────────────────────
-const _BC_BLUE   := Color("#29a8e0")
-const _BC_DARK   := Color("#0f1923")
-const _BC_PANEL  := Color("#141e2b")
-const _BC_WARN   := Color("#e8c93a")
-const _BC_MUTED  := Color(0.52, 0.60, 0.68)
+const _BC_BLUE       := Color("#29a8e0")
+const _BC_DARK       := Color("#0f1923")
+const _BC_PANEL      := Color("#141e2b")
+const _BC_WARN_DARK  := Color("#FF9B3D")  # orange — dark themes
+const _BC_WARN_LIGHT := Color("#FF832B")  # orange — light themes
 
-const _LOGO_PATH := "res://addons/braincloud/braincloud_logo.png"
+const _LOGO_PATH       := "res://addons/braincloud/braincloud_logo.png"        # white text — dark themes
+const _LOGO_PATH_LIGHT := "res://addons/braincloud/braincloud_logo_light.png"  # dark text — light themes
 
 # Only non-sensitive settings live in project.godot
 const _SETTINGS := [
@@ -34,6 +35,10 @@ const _LINKS := [
 
 var _panel_control: Control = null
 
+# Nodes that need to swap when the editor theme changes
+var _logo_png:   TextureRect = null  # swaps between dark-bg and light-bg variant
+var _warn_label: Label       = null  # brand orange — cannot inherit from theme
+
 
 func _enter_tree() -> void:
 	_register_project_settings()
@@ -44,9 +49,13 @@ func _enter_tree() -> void:
 	_panel_control.name = "brainCloud"
 	add_control_to_dock(EditorPlugin.DOCK_SLOT_RIGHT_UL, _panel_control)
 	add_tool_menu_item(_MENU_ITEM, _focus_panel)
+	get_editor_interface().get_editor_settings().settings_changed.connect(_update_panel_theme)
 
 
 func _exit_tree() -> void:
+	var es := get_editor_interface().get_editor_settings()
+	if es.settings_changed.is_connected(_update_panel_theme):
+		es.settings_changed.disconnect(_update_panel_theme)
 	remove_tool_menu_item(_MENU_ITEM)
 	if ProjectSettings.has_setting("autoload/" + _AUTOLOAD_NAME):
 		remove_autoload_singleton(_AUTOLOAD_NAME)
@@ -76,6 +85,47 @@ func _register_project_settings() -> void:
 		ProjectSettings.add_property_info({"name": entry["name"], "type": entry["type"]})
 
 
+# ── Live theme update ──────────────────────────────────────────────────────────
+# Only brand-specific overrides are applied here. All other colours are left to
+# Godot's theme system so they adapt automatically to any editor theme.
+
+func _update_panel_theme() -> void:
+	if not is_instance_valid(_panel_control):
+		return
+	# settings_changed fires before the new values are committed — wait one frame
+	await get_tree().process_frame
+	if not is_instance_valid(_panel_control):
+		return
+
+	var es           := get_editor_interface().get_editor_settings()
+	var _preset      := str(es.get_setting("interface/theme/preset"))
+	var _preset_low  := _preset.to_lower()
+	var _bg          := get_editor_interface().get_editor_theme().get_color("base_color", "Editor")
+	# Preset name is authoritative for built-in themes with "light"/"dark"/"black" in the name.
+	# All other presets (Default, Godot 2, Gray, custom) fall back to the compiled bg color.
+	var _is_light: bool
+	if "light" in _preset_low:
+		_is_light = true
+	elif "dark" in _preset_low or "black" in _preset_low:
+		_is_light = false
+	else:
+		_is_light = _bg.r > 0.24 and _bg.g > 0.24 and _bg.b > 0.24
+	print("[brainCloud] preset=%-22s  compiled_bg=%s  r=%.2f g=%.2f b=%.2f  is_light=%s" % [
+		_preset, _bg.to_html(false),
+		_bg.r, _bg.g, _bg.b,
+		_is_light
+	])
+
+	# Swap logo between the dark-bg and light-bg variants
+	if is_instance_valid(_logo_png):
+		_logo_png.texture = _try_load_logo(_LOGO_PATH_LIGHT if _is_light else _LOGO_PATH)
+
+	# Warning colour is brand orange — cannot be left to the theme
+	if is_instance_valid(_warn_label):
+		_warn_label.add_theme_color_override("font_color",
+			_BC_WARN_LIGHT if _is_light else _BC_WARN_DARK)
+
+
 # ── Panel build ────────────────────────────────────────────────────────────────
 
 func _build_panel() -> Control:
@@ -89,15 +139,10 @@ func _build_panel() -> Control:
 	root.add_theme_constant_override("separation", 0)
 	scroll.add_child(root)
 
-	# ── Header: logo + versions ───────────────────────────────────────────
-	var header := PanelContainer.new()
-	var hs := StyleBoxFlat.new()
-	hs.bg_color              = _BC_DARK
-	hs.content_margin_left   = 12
-	hs.content_margin_right  = 12
-	hs.content_margin_top    = 10
-	hs.content_margin_bottom = 10
-	header.add_theme_stylebox_override("panel", hs)
+	# ── Header ────────────────────────────────────────────────────────────
+	var header := MarginContainer.new()
+	for s in ["left", "right", "top", "bottom"]:
+		header.add_theme_constant_override("margin_" + s, 10)
 	root.add_child(header)
 
 	var hvbox := VBoxContainer.new()
@@ -105,30 +150,22 @@ func _build_panel() -> Control:
 	hvbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	header.add_child(hvbox)
 
-	var logo_tex := _try_load_logo()
-	if logo_tex:
-		var logo := TextureRect.new()
-		logo.texture               = logo_tex
-		logo.expand_mode           = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-		logo.stretch_mode          = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		logo.custom_minimum_size   = Vector2(0, 28)
-		logo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		hvbox.add_child(logo)
-	else:
-		var nr := HBoxContainer.new()
-		nr.alignment = BoxContainer.ALIGNMENT_CENTER
-		nr.add_theme_constant_override("separation", 2)
-		_add_label(nr, "brain", 16, Color.WHITE)
-		_add_label(nr, "Cloud", 16, _BC_BLUE)
-		hvbox.add_child(nr)
+	# PNG logo — texture swapped by _update_panel_theme between dark-bg and light-bg variants
+	_logo_png = TextureRect.new()
+	_logo_png.expand_mode           = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	_logo_png.stretch_mode          = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_logo_png.custom_minimum_size   = Vector2(0, 28)
+	_logo_png.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hvbox.add_child(_logo_png)
 
+	# Version — inherits theme font colour, no override needed
 	var ver_row := HBoxContainer.new()
 	ver_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	ver_row.add_theme_constant_override("separation", 6)
 	hvbox.add_child(ver_row)
-	_add_label(ver_row, "SDK " + _get_sdk_version(), 9, _BC_MUTED)
-	_add_label(ver_row, "·", 9, _BC_MUTED)
-	_add_label(ver_row, "Plugin " + _get_plugin_version(), 9, _BC_MUTED)
+	var ver_lbl := Label.new()
+	ver_lbl.text = "Plugin " + _get_plugin_version()
+	ver_lbl.add_theme_font_size_override("font_size", 9)
+	ver_row.add_child(ver_lbl)
 
 	root.add_child(_horiz_sep())
 
@@ -153,10 +190,10 @@ func _build_panel() -> Control:
 	var fields: Dictionary = {}
 
 	for fd in field_defs:
+		# No font_color override — inherits correctly from the editor theme
 		var flbl := Label.new()
 		flbl.text = fd[0]
 		flbl.add_theme_font_size_override("font_size", 11)
-		flbl.add_theme_color_override("font_color", _BC_MUTED)
 		cvbox.add_child(flbl)
 
 		var edit_row := HBoxContainer.new()
@@ -174,7 +211,7 @@ func _build_panel() -> Control:
 		if fd[2]:
 			var eye := Button.new()
 			eye.text                = "Show"
-			eye.toggle_mode         = true   # required — toggled signal won't fire without this
+			eye.toggle_mode         = true
 			eye.flat                = true
 			eye.focus_mode          = Control.FOCUS_NONE
 			eye.custom_minimum_size = Vector2(38, 0)
@@ -211,12 +248,11 @@ func _build_panel() -> Control:
 	save_btn.pressed.connect(_on_save.bind(fields, log_check, status))
 	cvbox.add_child(save_btn)
 
-	var warn := Label.new()
-	warn.text          = "⚠  braincloud.cfg is gitignored"
-	warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	warn.add_theme_font_size_override("font_size", 10)
-	warn.add_theme_color_override("font_color", _BC_WARN)
-	cvbox.add_child(warn)
+	_warn_label = Label.new()
+	_warn_label.text          = "⚠  braincloud.cfg is gitignored"
+	_warn_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_warn_label.add_theme_font_size_override("font_size", 11)
+	cvbox.add_child(_warn_label)
 
 	root.add_child(_horiz_sep())
 
@@ -234,6 +270,9 @@ func _build_panel() -> Control:
 
 	for link in _LINKS:
 		rvbox.add_child(_link_btn(link["label"], link["url"]))
+
+	# Apply initial logo + warning colour for the current theme
+	_update_panel_theme()
 
 	return scroll
 
@@ -254,15 +293,6 @@ func _section_lbl(text: String) -> Label:
 	lbl.text = text.to_upper()
 	lbl.add_theme_font_size_override("font_size", 10)
 	lbl.add_theme_color_override("font_color", _BC_BLUE)
-	return lbl
-
-
-func _add_label(parent: Node, text: String, size: int, color: Color) -> Label:
-	var lbl := Label.new()
-	lbl.text = text
-	lbl.add_theme_font_size_override("font_size", size)
-	lbl.add_theme_color_override("font_color", color)
-	parent.add_child(lbl)
 	return lbl
 
 
@@ -288,7 +318,7 @@ func _link_btn(text: String, url: String) -> Button:
 	var btn := Button.new()
 	btn.text                  = text
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	btn.custom_minimum_size   = Vector2(0, 22)
+	btn.custom_minimum_size   = Vector2(0, 28)
 	for state in ["normal", "hover", "pressed"]:
 		var s := StyleBoxFlat.new()
 		s.bg_color     = Color(0,0,0,0) if state == "normal" else Color(_BC_BLUE, 0.15 if state == "hover" else 0.25)
@@ -303,6 +333,9 @@ func _link_btn(text: String, url: String) -> Button:
 		s.content_margin_bottom      = 3
 		btn.add_theme_stylebox_override(state, s)
 	btn.add_theme_font_size_override("font_size", 11)
+	var bold_font := get_editor_interface().get_editor_theme().get_font("bold", "EditorFonts")
+	if bold_font:
+		btn.add_theme_font_override("font", bold_font)
 	btn.add_theme_color_override("font_color",         _BC_BLUE)
 	btn.add_theme_color_override("font_hover_color",   _BC_BLUE.lightened(0.15))
 	btn.add_theme_color_override("font_pressed_color", _BC_BLUE.darkened(0.1))
@@ -310,9 +343,9 @@ func _link_btn(text: String, url: String) -> Button:
 	return btn
 
 
-func _try_load_logo() -> Texture2D:
-	if ResourceLoader.exists(_LOGO_PATH):
-		return load(_LOGO_PATH) as Texture2D
+func _try_load_logo(path: String) -> Texture2D:
+	if ResourceLoader.exists(path):
+		return load(path) as Texture2D
 	return null
 
 
@@ -323,23 +356,9 @@ func _get_plugin_version() -> String:
 	return "?"
 
 
-func _get_sdk_version() -> String:
-	var f := FileAccess.open("res://addons/braincloud/BrainCloudClient.gd", FileAccess.READ)
-	if not f:
-		return _get_plugin_version()
-	while not f.eof_reached():
-		var line := f.get_line()
-		if "BRAINCLOUD_VERSION" in line and ":=" in line:
-			var parts := line.split('"')
-			if parts.size() >= 2:
-				return parts[1]
-	return _get_plugin_version()
-
-
 # ── Data helpers ───────────────────────────────────────────────────────────────
 
 func _read_setting(key: String) -> String:
-	# Credentials come from the separate gitignored file
 	if key in ["app_id", "app_secret"]:
 		var cfg := ConfigFile.new()
 		if cfg.load(_CREDS_PATH) == OK:
@@ -347,7 +366,6 @@ func _read_setting(key: String) -> String:
 			if not v.is_empty():
 				return v
 		return ""
-	# Non-sensitive settings from ProjectSettings
 	var full_key := "braincloud/config/" + key
 	if ProjectSettings.has_setting(full_key):
 		var v = ProjectSettings.get_setting(full_key)
@@ -362,30 +380,28 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 	var app_ver    := (fields["app_version"] as LineEdit).text.strip_edges()
 
 	if app_id.is_empty() or app_secret.is_empty() or server_url.is_empty():
-		status.modulate = Color(1.0, 0.45, 0.45)
-		status.text     = "App ID, Secret and URL are required."
+		status.add_theme_color_override("font_color", Color("#dd5555"))
+		status.text = "App ID, Secret and URL are required."
 		return
 
-	# Credentials → separate gitignored file (never project.godot)
 	var creds := ConfigFile.new()
-	creds.set_value("credentials", "app_id",     app_id)
-	creds.set_value("credentials", "app_secret",  app_secret)
+	creds.set_value("credentials", "app_id",    app_id)
+	creds.set_value("credentials", "app_secret", app_secret)
 	creds.save(_CREDS_PATH)
 	_ensure_gitignore()
 
-	# Non-sensitive settings → ProjectSettings
 	ProjectSettings.set_setting("braincloud/config/server_url",    server_url)
 	ProjectSettings.set_setting("braincloud/config/app_version",   app_ver if not app_ver.is_empty() else "1.0.0")
 	ProjectSettings.set_setting("braincloud/debug/enable_logging", log_check.button_pressed)
 	ProjectSettings.save()
 
-	status.modulate = Color(0.45, 1.0, 0.55)
-	status.text     = "✓  Saved"
+	status.add_theme_color_override("font_color", Color("#44bb66"))
+	status.text = "✓  Saved"
 
 
 func _ensure_gitignore() -> void:
-	var path  := "res://.gitignore"
-	var entry := "addons/braincloud/braincloud.cfg"
+	var path    := "res://.gitignore"
+	var entry   := "addons/braincloud/braincloud.cfg"
 	var content := ""
 
 	if FileAccess.file_exists(path):
