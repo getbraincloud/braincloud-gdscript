@@ -88,3 +88,10 @@ func get_net_id() -> int:
 ## Returns the current ping to the relay server in milliseconds.
 func get_ping() -> int:
 	return _relay_comms.get_ping()
+
+## Sends the end-match packet (CL2RS_ENDMATCH opcode) to the relay server.
+## The relay server broadcasts an END_MATCH system message to all players.
+##
+## @param json_payload Dictionary with match-end metadata (cxId, lobbyId, op)
+func end_match(json_payload: Dictionary) -> void:
+	_relay_comms.end_match(json_payload)

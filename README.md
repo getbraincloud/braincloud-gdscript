@@ -14,18 +14,10 @@ Supports all brainCloud services — authentication, leaderboards, entities, RTT
 
 ## Installation
 
-### From the Godot Asset Library (recommended)
-
-1. Open your Godot project.
-2. Go to **AssetLib** tab → search for **brainCloud**.
-3. Click **Download** then **Install**.  
-   The addon lands at `addons/braincloud/`.
-4. Enable it: **Project → Project Settings → Plugins → brainCloud → Enable**.
-
-### Manual install
-
 1. Copy the `addons/braincloud/` folder from this repo into the root of your Godot project.
-2. Enable the plugin via **Project → Project Settings → Plugins**.
+2. Enable the plugin: **Project → Project Settings → Plugins → brainCloud → Enable**.
+
+You can also find the SDK on the [Godot Asset Library](https://godotengine.org/asset-library/asset/5196) — download the zip, extract it, and copy `addons/braincloud/` the same way.
 
 ---
 
