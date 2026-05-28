@@ -3,9 +3,13 @@ class_name BrainCloudLobby
 extends RefCounted
 
 var _client_ref: BrainCloudClient
+var _ping_data: Dictionary = {}
 
 func _init(client_ref: BrainCloudClient) -> void:
 	_client_ref = client_ref
+
+func set_ping_data(ping_data: Dictionary) -> void:
+	_ping_data = ping_data
 
 ## Finds a lobby matching the specified parameters. Asynchronous - listen to RTT lobby events for updates.
 ##
@@ -92,7 +96,7 @@ func find_or_create_lobby_with_ping_data(lobby_type: String, rating: int, max_st
 		OperationParam.LOBBY_EXTRA_JSON: extra_json,
 		OperationParam.LOBBY_TEAM: team_code,
 		OperationParam.LOBBY_OTHER_USER_CX_IDS: other_user_cx_ids,
-		OperationParam.LOBBY_PING_DATA: {}
+		OperationParam.LOBBY_PING_DATA: _ping_data
 	}
 	return await _send(ServiceOperation.LOBBY_FIND_OR_CREATE, data)
 
