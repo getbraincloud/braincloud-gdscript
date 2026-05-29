@@ -171,7 +171,7 @@ func _ready() -> void:
 
 ## Example Project
 
-See the [brainCloud Godot Examples](https://github.com/getbraincloud/godot-examples) repo for a complete **GDScript Relay Test App** demonstrating login, lobby, RTT, and relay multiplayer.
+See the [brainCloud Godot Examples](https://github.com/getbraincloud/examples-godot) repo for a complete **Relay Test App-GDScript** demonstrating login, lobby, RTT, and relay multiplayer.
 
 ---
 
