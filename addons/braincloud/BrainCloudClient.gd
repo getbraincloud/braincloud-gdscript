@@ -233,6 +233,20 @@ func get_authentication_packet_timeout() -> int:
 func enable_network_error_message_caching(enabled: bool) -> void:
 	_comms.enable_network_error_message_caching(enabled)
 
+# Enables gzip compression of large outgoing requests. Responses are already
+# compressed (requested by default and decompressed automatically).
+func enable_compressed_requests(enabled: bool) -> void:
+	_comms.enable_compressed_requests(enabled)
+
+# Controls whether the server gzips its responses (sent as the compressResponse auth param).
+func enable_compressed_responses(enabled: bool) -> void:
+	_comms.enable_compressed_responses(enabled)
+
+# Convenience: enable (or disable) both compressed requests and responses in one call.
+func enable_compression(enabled: bool = true) -> void:
+	enable_compressed_requests(enabled)
+	enable_compressed_responses(enabled)
+
 func retry_cached_messages() -> void:
 	_comms.retry_cached_messages()
 

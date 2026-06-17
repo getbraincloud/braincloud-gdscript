@@ -139,6 +139,17 @@ func deregister_network_error_callback() -> void:
 func enable_network_error_message_caching(enabled: bool) -> void:
 	_cache_messages_on_network_error = enabled
 
+# Gzip outgoing request bodies that exceed the server-advertised threshold
+# (compressIfLarger, defaults to 50KB). Responses are decompressed automatically by
+# Godot's HTTPRequest (accept_gzip defaults to true).
+func enable_compressed_requests(enabled: bool) -> void:
+	_supports_compression = enabled
+
+# Ask the server to gzip its responses (sent as the compressResponse auth param).
+func enable_compressed_responses(enabled: bool) -> void:
+	if _client_ref and _client_ref.authentication_service:
+		_client_ref.authentication_service.compress_response = enabled
+
 func enable_comms(value: bool) -> void:
 	_enabled = value
 
@@ -480,13 +491,20 @@ func _internal_send_message(request_state: RequestState) -> void:
 		packet["gameId"] = _app_id
 
 	var json_string := JSON.stringify(packet)
+	# Sign the uncompressed body — the server decompresses before validating the signature.
 	var sig := _calculate_md5(json_string + get_secret_key())
 
-	var headers := PackedStringArray([
+	var headers: Array[String] = [
 		"Content-Type: application/json;charset=utf-8",
 		"X-SIG: " + sig,
 		"X-APPID: " + _app_id
-	])
+	]
+
+	# Gzip the request body once it exceeds the server-advertised threshold.
+	var body_bytes := json_string.to_utf8_buffer()
+	if _supports_compression and body_bytes.size() >= _client_side_compression_threshold:
+		body_bytes = body_bytes.compress(FileAccess.COMPRESSION_GZIP)
+		headers.append("Content-Encoding: gzip")
 
 	request_state.request_string = json_string
 	request_state.signature = sig
@@ -498,7 +516,7 @@ func _internal_send_message(request_state: RequestState) -> void:
 	var http_request := HTTPRequest.new()
 	_client_ref.add_child(http_request)
 	http_request.request_completed.connect(_on_request_completed.bind(request_state, http_request))
-	http_request.request(_server_url, headers, HTTPClient.METHOD_POST, json_string)
+	http_request.request_raw(_server_url, PackedStringArray(headers), HTTPClient.METHOD_POST, body_bytes)
 	request_state.http_request = http_request
 
 	_reset_idle_timer()
