@@ -112,6 +112,12 @@ func register_auto_reconnect_callback(cb: Callable) -> void:
 func deregister_auto_reconnect_callback() -> void:
 	_auto_reconnect_callback = Callable()
 
+func enable_auto_reconnect(enabled: bool) -> void:
+	_auto_reconnect_enabled = enabled
+
+func get_auto_reconnect_enabled() -> bool:
+	return _auto_reconnect_enabled
+
 func register_reward_callback(cb: Callable) -> void:
 	_reward_callback = cb
 
@@ -278,6 +284,14 @@ func handle_response_bundle(json_data: String) -> void:
 				_failed_authentication_attempts += 1
 				if too_many_authentication_attempts():
 					_authentication_timeout_start = Time.get_ticks_msec() / 1000.0
+
+			# If the authenticated session has expired and auto-reconnect (long session)
+			# is enabled, silently re-authenticate and replay the lost call(s) instead of
+			# surfacing the error. Mirrors the C# SDK's transparent reconnect behaviour.
+			if reason_code == ReasonCodes.PLAYER_SESSION_EXPIRED and _auto_reconnect_enabled \
+				and operation != ServiceOperation.AUTHENTICATE and _is_authenticated:
+				_attempt_auto_reconnect(sc)
+				return
 
 			if reason_code in [ReasonCodes.PLAYER_SESSION_EXPIRED, ReasonCodes.NO_SESSION, ReasonCodes.PLAYER_SESSION_LOGGED_OUT]:
 				_is_authenticated = false
@@ -563,6 +577,51 @@ func shut_down() -> void:
 	_service_calls_waiting.clear()
 	_active_request = null
 	reset_communication()
+
+# Triggered when an authenticated session expires and auto-reconnect is enabled.
+# Preserves the call that failed (plus any others from the same bundle), resets the
+# packet state, and queues a silent anonymous re-authentication. The lost calls are
+# replayed once the session is restored (see _on_auto_reconnect_response).
+func _attempt_auto_reconnect(expired_call: ServerCall) -> void:
+	var calls_to_replay: Array[ServerCall] = []
+	if expired_call != null:
+		calls_to_replay.append(expired_call)
+	calls_to_replay.append_array(_service_calls_in_progress)
+	_service_calls_in_progress.clear()
+
+	if _client_ref.logging_enabled:
+		_client_ref.log("Session expired. Attempting reconnect...")
+
+	_packet_id = 0
+	_expected_incoming_packet_id = NO_PACKET_EXPECTED
+
+	# Re-authenticate anonymously using only the stored anonymous/profile ids - we never
+	# store or replay passwords. The auth call is prioritized ahead of any queued calls.
+	var auth_call: ServerCall = _client_ref.authentication_service.build_anonymous_reconnect_call()
+	auth_call.response_received.connect(
+		_on_auto_reconnect_response.bind(calls_to_replay), CONNECT_ONE_SHOT)
+	_service_calls_waiting.insert(0, auth_call)
+
+func _on_auto_reconnect_response(auth_response: Dictionary, calls_to_replay: Array[ServerCall]) -> void:
+	if auth_response.get("status", 0) == StatusCodes.OK:
+		# Session restored - re-queue the lost calls so the next update loop resends them.
+		_client_ref.log("Auto-reconnect: session restored, replaying %d call(s)" % calls_to_replay.size())
+		for sc in calls_to_replay:
+			_service_calls_waiting.append(sc)
+		if _auto_reconnect_callback.is_valid():
+			_auto_reconnect_callback.call(auth_response)
+	else:
+		# Re-authentication failed - disable auto-reconnect to avoid an infinite loop and
+		# surface the failure to the original callers.
+		_client_ref.log("Auto-reconnect: re-authentication failed, disabling auto-reconnect")
+		_auto_reconnect_enabled = false
+		if _auto_reconnect_callback.is_valid():
+			_auto_reconnect_callback.call(auth_response)
+		for sc in calls_to_replay:
+			sc.on_failure(
+				auth_response.get("status", StatusCodes.CLIENT_NETWORK_ERROR),
+				auth_response.get("reason_code", ReasonCodes.NO_SESSION),
+				auth_response.get("status_message", "Re-authentication failed"))
 
 func retry_cached_messages() -> void:
 	if _blocking_queue:

@@ -380,6 +380,13 @@ func _build_base_auth_data(external_id: String, auth_token: String, auth_type: S
 		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_COMPRESS_RESPONSE: compress_response
 	}
 
+## Builds (but does not send) an anonymous authenticate ServerCall using the currently
+## stored anonymous/profile ids. Used internally by the comms layer to silently restore
+## an expired session without ever storing or replaying user passwords.
+func build_anonymous_reconnect_call() -> ServerCall:
+	var data := _build_base_auth_data(_anonymous_id, "", AuthenticationType.ANONYMOUS, false)
+	return ServerCall.new(ServiceName.AUTHENTICATE, ServiceOperation.AUTHENTICATE, data)
+
 func _send_auth_call(data: Dictionary) -> Dictionary:
 	return await _send_call(ServiceOperation.AUTHENTICATE, data)
 
