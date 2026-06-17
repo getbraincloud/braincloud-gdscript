@@ -86,11 +86,33 @@ if response.status == 200:
 var response = await brainCloud.authenticate_universal("my_username", "my_password", true)
 ```
 
-### Re-authenticate (restore previous session)
+### Reconnect (restore a previous session)
+
+`reconnect()` restores a session using only the stored **anonymous id** and **profile id**.
+The SDK never stores or replays usernames or passwords, so reconnection always goes through
+anonymous authentication (matching the C# SDK). Use `can_reconnect()` to check first.
 
 ```gdscript
-var response = await brainCloud.reauthenticate()
+if brainCloud.can_reconnect():
+    var response = await brainCloud.reconnect()
 ```
+
+### Auto-reconnect (transparent long sessions)
+
+Enable auto-reconnect to have the SDK silently re-authenticate and replay any calls that
+were lost when an authenticated session expires — game code never has to handle the
+`PLAYER_SESSION_EXPIRED` error itself.
+
+```gdscript
+brainCloud.enable_auto_reconnect(true)
+
+# Optional: be notified when a transparent reconnect succeeds or finally fails
+brainCloud.braincloud_client.register_auto_reconnect_callback(func(response):
+    print("Auto-reconnect result: ", response.status))
+```
+
+If re-authentication fails, auto-reconnect disables itself to avoid an infinite loop and the
+original calls fail through to their callers.
 
 Other supported providers: `authenticate_google`, `authenticate_apple`, `authenticate_facebook`, `authenticate_steam`, `authenticate_nintendo`, `authenticate_twitter`, and more — see `BrainCloudWrapper.gd` for the full list.
 

@@ -5,8 +5,6 @@ extends Node
 const PREFS_PROFILE_ID := "brainCloud.profileId"
 const PREFS_ANONYMOUS_ID := "brainCloud.anonymousId"
 const PREFS_AUTHENTICATION_TYPE := "brainCloud.authenticationType"
-const PREFS_EXTERNAL_ID := "brainCloud.externalId"
-const PREFS_AUTH_TOKEN := "brainCloud.authToken"
 const PREFS_LAST_PACKET_ID := "brainCloud.lastPacketId"
 const _CREDS_PATH := "res://addons/braincloud/braincloud.cfg"
 
@@ -209,8 +207,6 @@ func authenticate_anonymous(force_create: bool = true) -> Dictionary:
 func authenticate_email_password(email: String, password: String, force_create: bool) -> Dictionary:
 	_init_profile_for_authenticate()
 	set_stored_authentication_type(AuthenticationType.EMAIL)
-	_save_pref(PREFS_EXTERNAL_ID, email)
-	_save_pref(PREFS_AUTH_TOKEN, password)
 	var response := await _client.authentication_service.authenticate_email_password(email, password, force_create)
 	if response.get("status", 0) == StatusCodes.OK:
 		_on_authenticated(response)
@@ -219,8 +215,6 @@ func authenticate_email_password(email: String, password: String, force_create: 
 func authenticate_universal(username: String, password: String, force_create: bool) -> Dictionary:
 	_init_profile_for_authenticate()
 	set_stored_authentication_type(AuthenticationType.UNIVERSAL)
-	_save_pref(PREFS_EXTERNAL_ID, username)
-	_save_pref(PREFS_AUTH_TOKEN, password)
 	var response := await _client.authentication_service.authenticate_universal(username, password, force_create)
 	if response.get("status", 0) == StatusCodes.OK:
 		_on_authenticated(response)
@@ -258,21 +252,27 @@ func authenticate_steam(steam_id: String, session_ticket: String, force_create: 
 		_on_authenticated(response)
 	return response
 
-func reauthenticate() -> Dictionary:
-	var auth_type := get_stored_authentication_type()
-	if auth_type == AuthenticationType.ANONYMOUS or auth_type.is_empty():
-		return await authenticate_anonymous(false)
-	var ext_id := _load_pref(PREFS_EXTERNAL_ID)
-	var auth_token := _load_pref(PREFS_AUTH_TOKEN)
-	if auth_type == AuthenticationType.UNIVERSAL:
-		return await authenticate_universal(ext_id, auth_token, false)
-	if auth_type == AuthenticationType.EMAIL:
-		return await authenticate_email_password(ext_id, auth_token, false)
-	push_warning("BrainCloudWrapper.reauthenticate: unsupported auth type '%s'" % auth_type)
-	return {"status": StatusCodes.CLIENT_NETWORK_ERROR}
-
+# Re-authenticates an expired session using ONLY the stored anonymous id and profile id.
+# We deliberately never store or replay user passwords (email/universal credentials), so
+# reconnection always goes through anonymous authentication - matching the C# SDK.
 func reconnect() -> Dictionary:
-	return await reauthenticate()
+	_init_identity_for_reconnect()
+	return await authenticate_anonymous(false)
+
+# Kept for backwards compatibility - identical to reconnect().
+func reauthenticate() -> Dictionary:
+	return await reconnect()
+
+# Returns true if a reconnect is possible (both profile id and anonymous id are stored).
+func can_reconnect() -> bool:
+	return not get_stored_profile_id().is_empty() and not get_stored_anonymous_id().is_empty()
+
+# Enables (or disables) transparent automatic re-authentication when an authenticated
+# session expires. When enabled, the SDK silently re-authenticates anonymously and replays
+# the lost calls without the game code having to handle session-expiry errors.
+func enable_auto_reconnect(enabled: bool) -> void:
+	_init_identity_for_reconnect()
+	_client.enable_auto_reconnect(enabled)
 
 func logout(forget_user: bool = false) -> Dictionary:
 	var response := await _client.player_state_service.logout()
@@ -280,8 +280,6 @@ func logout(forget_user: bool = false) -> Dictionary:
 		reset_stored_profile_id()
 		reset_stored_anonymous_id()
 		set_stored_authentication_type("")
-		_save_pref(PREFS_EXTERNAL_ID, "")
-		_save_pref(PREFS_AUTH_TOKEN, "")
 	return response
 
 func reset_to_default_app() -> void:
@@ -296,6 +294,16 @@ func _on_authenticated(response: Dictionary) -> void:
 
 func getCampaignService() -> BrainCloudCampaign:
 	return campaign_service
+
+# Loads the stored anonymous id and profile id into the authentication service so that a
+# silent anonymous re-authentication (reconnect / auto-reconnect) can succeed. Generates a
+# new anonymous id only if none has been stored yet.
+func _init_identity_for_reconnect() -> void:
+	var anonymous_id := get_stored_anonymous_id()
+	if anonymous_id.is_empty():
+		anonymous_id = _client.authentication_service.generate_anonymous_id()
+		set_stored_anonymous_id(anonymous_id)
+	_client.initialize_identity(get_stored_profile_id(), anonymous_id)
 
 func _init_profile_for_authenticate() -> void:
 	if _always_allow_profile_switch:

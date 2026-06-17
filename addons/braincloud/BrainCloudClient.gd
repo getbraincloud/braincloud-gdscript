@@ -3,7 +3,7 @@ class_name BrainCloudClient
 extends Node
 
 const DEFAULT_SERVER_URL := "https://api.braincloudservers.com/dispatcherv2"
-const BRAINCLOUD_VERSION := "5.9.0"
+const BRAINCLOUD_VERSION := "6.0.0"
 
 var _app_version: String = ""
 var _language_code: String = "en"
@@ -233,6 +233,20 @@ func get_authentication_packet_timeout() -> int:
 func enable_network_error_message_caching(enabled: bool) -> void:
 	_comms.enable_network_error_message_caching(enabled)
 
+# Enables gzip compression of large outgoing requests. Responses are already
+# compressed (requested by default and decompressed automatically).
+func enable_compressed_requests(enabled: bool) -> void:
+	_comms.enable_compressed_requests(enabled)
+
+# Controls whether the server gzips its responses (sent as the compressResponse auth param).
+func enable_compressed_responses(enabled: bool) -> void:
+	_comms.enable_compressed_responses(enabled)
+
+# Convenience: enable (or disable) both compressed requests and responses in one call.
+func enable_compression(enabled: bool = true) -> void:
+	enable_compressed_requests(enabled)
+	enable_compressed_responses(enabled)
+
 func retry_cached_messages() -> void:
 	_comms.retry_cached_messages()
 
@@ -277,6 +291,12 @@ func register_auto_reconnect_callback(cb: Callable) -> void:
 
 func deregister_auto_reconnect_callback() -> void:
 	_comms.deregister_auto_reconnect_callback()
+
+func enable_auto_reconnect(enabled: bool) -> void:
+	_comms.enable_auto_reconnect(enabled)
+
+func get_auto_reconnect_enabled() -> bool:
+	return _comms.get_auto_reconnect_enabled()
 
 func get_received_packet_id() -> int:
 	return _comms.get_received_packet_id()

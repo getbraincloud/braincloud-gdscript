@@ -4,6 +4,7 @@ extends SceneTree
 
 const TEST_FILES := [
 	"res://test/authentication_test.gd",
+	"res://test/auto_reconnect_test.gd",
 	"res://test/wrapper_test.gd",
 	"res://test/client_test.gd",
 	"res://test/comms_test.gd",
