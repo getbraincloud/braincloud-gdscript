@@ -46,17 +46,8 @@ func logout() -> Dictionary:
 ## Service Operation - UPDATE_NAME
 ##
 ## @param player_name The name of the user
-func update_name(player_name: String) -> Dictionary:
-	return await _send(ServiceOperation.UPDATE_NAME, {OperationParam.PLAYER_STATE_SERVICE_UPDATE_NAME: player_name})
-
-## Sets the user's name. Alias for update_name.
-##
-## Service Name - PlayerState[br]
-## Service Operation - UPDATE_NAME
-##
-## @param player_name The name of the user
-func update_player_name(player_name: String) -> Dictionary:
-	return await update_name(player_name)
+func update_user_name(user_name: String) -> Dictionary:
+	return await  _send(ServiceOperation.UPDATE_NAME, {OperationParam.PLAYER_STATE_SERVICE_UPDATE_NAME: player_name})
 
 ## Updates the "friend summary data" associated with the logged in user.
 ## This data is returned in social leaderboards and other summary operations.
