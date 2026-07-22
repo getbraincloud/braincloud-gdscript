@@ -78,7 +78,6 @@ const PLAYER_STATE_SERVICE_DETAILS := "details"
 const PLAYER_STATE_SERVICE_SUMMARY := "playerSummaryData"
 const PLAYER_STATE_SERVICE_PICTURE_URL := "playerPictureUrl"
 const PLAYER_STATE_SERVICE_CONTACT_EMAIL := "contactEmail"
-const PLAYER_STATE_SERVICE_NEW_NAME := "newName"
 const PLAYER_STATE_SERVICE_TIMEZONE_OFFSET := "timeZoneOffset"
 const PLAYER_STATE_SERVICE_LANGUAGE_CODE := "languageCode"
 

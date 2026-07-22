@@ -62,6 +62,13 @@ func test_post_score_to_leaderboard(bc: BCTest) -> void:
 	)
 	bc.expect_status_ok(response)
 
+	# Read the score back to confirm it was actually posted under the "score" param
+	# (not silently dropped/miskeyed, e.g. the past bestScore/score mixup).
+	var readback := await bc.bc_wrapper.social_leaderboard_service.get_player_score(lb_id, -1)
+	bc.expect_status_ok(readback)
+	var posted_score: int = readback.get("data", {}).get("score", {}).get("score", -1)
+	bc.expect_eq(posted_score, 1000, "Posted score did not round-trip via get_player_score")
+
 func test_get_social_leaderboard(bc: BCTest) -> void:
 	bc.begin_test("test_get_social_leaderboard")
 	var lb_id: String = bc.ids.get("leaderboardId", "testLeaderboard")
