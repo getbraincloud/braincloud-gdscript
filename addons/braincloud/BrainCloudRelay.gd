@@ -20,7 +20,8 @@ func _init(client_ref: BrainCloudClient, relay_comms: BrainCloudRelayComms) -> v
 
 ## Connects to a relay server.
 ##
-## @param connect_options Dictionary with keys: host, port, ssl, lobbyId, passcode
+## @param connect_options Dictionary with keys: host, port, ssl, lobbyId, passcode,
+##        protocol ("ws" | "wss" | "tcp" | "udp", defaults to "ws"/"wss" based on ssl)
 ## @param success_cb Callable invoked on successful connection
 ## @param failure_cb Callable invoked if connection fails
 func relay_connect(connect_options: Dictionary, success_cb: Callable, failure_cb: Callable) -> void:
@@ -32,8 +33,9 @@ func relay_connect(connect_options: Dictionary, success_cb: Callable, failure_cb
 	var use_ssl: bool = connect_options.get("ssl", false)
 	var lobby_id: String = connect_options.get("lobbyId", "")
 	var passcode: String = connect_options.get("passcode", "")
+	var protocol: String = connect_options.get("protocol", "wss" if use_ssl else "ws")
 
-	_relay_comms.connect_relay(host, port, use_ssl, lobby_id, passcode)
+	_relay_comms.connect_relay(host, port, use_ssl, lobby_id, passcode, protocol)
 	var result: Dictionary = await _relay_comms.connect_result
 
 	if result.get("status", 0) == 200:

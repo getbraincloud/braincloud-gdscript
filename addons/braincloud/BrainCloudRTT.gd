@@ -35,11 +35,13 @@ func enable_rtt(connection_type: String, success_cb: Callable, failure_cb: Calla
 	var data: Dictionary = result.get("data", {})
 	var endpoints: Array = data.get("endpoints", [])
 	var auth: Dictionary = data.get("auth", {})
-	var ws_endpoint: Dictionary = {}
-	for ep in endpoints:
-		if ep.get("protocol", "") == "ws":
-			ws_endpoint = ep
-			break
+	# 1st choice: websocket + ssl, 2nd: websocket (no ssl). Matches the cpp/dart SDKs'
+	# endpoint selection — picking a plain ws:// endpoint over an available wss:// one
+	# breaks any client running under browser mixed-content rules (a page served over
+	# https can never open a ws:// connection), so prefer ssl whenever the server offers it.
+	var ws_endpoint: Dictionary = _find_endpoint(endpoints, "ws", true)
+	if ws_endpoint.is_empty():
+		ws_endpoint = _find_endpoint(endpoints, "ws", false)
 
 	if ws_endpoint.is_empty():
 		var err_resp := {"status": 900, "reason_code": 0, "status_message": "No WebSocket endpoint in RTT response"}
@@ -130,3 +132,10 @@ func _send(operation: String, data: Dictionary) -> Dictionary:
 	var sc := ServerCall.new(ServiceName.RTT_REGISTRATION, operation, data)
 	_client_ref.comms.add_to_queue(sc)
 	return await sc.response_received
+
+## Finds the first endpoint matching protocol_type whose "ssl" flag equals want_ssl.
+func _find_endpoint(endpoints: Array, protocol_type: String, want_ssl: bool) -> Dictionary:
+	for ep in endpoints:
+		if ep.get("protocol", "") == protocol_type and bool(ep.get("ssl", false)) == want_ssl:
+			return ep
+	return {}
