@@ -259,6 +259,8 @@ const GROUP_WHERE := "where"
 
 # Chat
 const CHAT_CHANNEL_ID := "channelId"
+const CHAT_CHANNEL_TYPE := "channelType"
+const CHAT_CHANNEL_SUB_ID := "channelSubId"
 const CHAT_CONTENT := "content"
 const CHAT_PLAIN_TEXT := "text"
 const CHAT_MAX_RETURN := "maxReturn"

@@ -60,10 +60,24 @@ func delete_chat_message(channel_id: String, msg_id: String, version: int) -> Di
 ## @param sub_id The sub id of the channel
 func get_channel_id(channel_type: String, sub_id: String) -> Dictionary:
 	var data := {
-		"channelType": channel_type,
-		"subId": sub_id
+		OperationParam.CHAT_CHANNEL_TYPE: channel_type,
+		OperationParam.CHAT_CHANNEL_SUB_ID: sub_id
 	}
 	return await _send(ServiceOperation.GET_CHANNEL_ID, data)
+
+## Gets a populated chat message object (normally for editing).
+##
+## Service Name - Chat[br]
+## Service Operation - GetChatMessage
+##
+## @param channel_id The id of the channel to get the message from
+## @param msg_id The id of the message to read
+func get_chat_message(channel_id: String, msg_id: String) -> Dictionary:
+	var data := {
+		OperationParam.CHAT_CHANNEL_ID: channel_id,
+		OperationParam.CHAT_MSG_ID: msg_id
+	}
+	return await _send(ServiceOperation.GET_CHAT_MESSAGE, data)
 
 ## Gets description info and activity stats for the given channel.
 ## Only callable for channels the user is a member of.
@@ -119,9 +133,9 @@ func get_recent_chat_messages(channel_id: String, max_return: int) -> Dictionary
 ## @param channel_type Type of channels: "gl" for global, "gr" for group, or "all"
 func get_subscribed_channels(channel_type: String) -> Dictionary:
 	var data := {
-		"channelType": channel_type
+		OperationParam.CHAT_CHANNEL_TYPE: channel_type
 	}
-	return await _send("GET_SUBSCRIBED_CHANNELS", data)
+	return await _send(ServiceOperation.GET_SUBSCRIBED_CHANNELS, data)
 
 ## Sends a potentially rich chat message. Content must contain at least a "text" field.
 ##
