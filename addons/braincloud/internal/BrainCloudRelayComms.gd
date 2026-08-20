@@ -43,6 +43,14 @@ const _RELIABLE_GIVE_UP_MS := 10000
 const _UDP_CONNECT_RESEND_INTERVAL_MS := 2000
 const _UDP_IDLE_TIMEOUT_MS := 10000
 
+# How long to wait for the transport to reach CONNECTED before giving up (matches cpp's
+# RelayComms.cpp TIMEOUT_SECONDS). Without this, a transport that never resolves to OPEN or
+# CLOSED — e.g. a browser silently blocking a mixed-content ws:// attempt from an https://
+# page on Web export, or a server that never responds — leaves connect_relay() hanging
+# forever with no error and no retry, since the CONNECTING poll branch below is otherwise a
+# no-op wait.
+const _CONNECT_TIMEOUT_MS := 10000
+
 var _transport = null       # RelayWSSocket | RelayTCPSocket | RelayUDPSocket
 var _transport_kind := "ws" # "ws" | "tcp" | "udp" — which one _transport is
 
@@ -53,6 +61,8 @@ var _passcode: String = ""
 var _net_id: int = -1
 var _relay_callback: Callable
 var _system_callback: Callable
+var _cx_to_net_id: Dictionary = {}  # cxId -> netId, tracked from CONNECT/NET_ID system messages
+var _net_id_to_cx: Dictionary = {}  # netId -> cxId
 var _pending_emit: Dictionary = {}
 var _ping_ms: int = -1
 var _ping_timer: float = 0.0
@@ -84,6 +94,8 @@ func connect_relay(host: String, port: int, use_ssl: bool, lobby_id: String, pas
 	_recv_packet_id.clear()
 	_reliables.clear()
 	_ordered_pending.clear()
+	_cx_to_net_id.clear()
+	_net_id_to_cx.clear()
 	_udp_connect_resend_timer = 0.0
 	_last_recv_time_ms = Time.get_ticks_msec()
 
@@ -115,6 +127,12 @@ func get_net_id() -> int:
 func get_ping() -> int:
 	return _ping_ms
 
+func get_net_id_for_cx_id(cx_id: String) -> int:
+	return _cx_to_net_id.get(cx_id, -1)
+
+func get_cx_id_for_net_id(net_id: int) -> String:
+	return _net_id_to_cx.get(net_id, "")
+
 func register_relay_callback(cb: Callable) -> void:
 	_relay_callback = cb
 
@@ -134,6 +152,18 @@ func end_match(json_payload: Dictionary) -> void:
 	_send_with_size_prefix(body)
 
 func send_relay(data: PackedByteArray, to_net_id: int, reliable: bool, ordered: bool, channel: int) -> void:
+	# 40-bit player mask: bit N = send to player N.  0xFF (TO_ALL_PLAYERS) → all 40 bits.
+	var player_mask: int
+	if to_net_id >= _MAX_PLAYERS:
+		player_mask = (1 << _MAX_PLAYERS) - 1
+	else:
+		player_mask = 1 << to_net_id
+	send_relay_to_mask(data, player_mask, reliable, ordered, channel)
+
+## Sends data to an arbitrary subset of players via an explicit 40-bit player mask (bit N =
+## deliver to the player whose net id is N). Use get_net_id_for_cx_id() to resolve each target's
+## net id first.
+func send_relay_to_mask(data: PackedByteArray, player_mask: int, reliable: bool, ordered: bool, channel: int) -> void:
 	if _state != _State.CONNECTED:
 		return
 
@@ -142,13 +172,6 @@ func send_relay(data: PackedByteArray, to_net_id: int, reliable: bool, ordered: 
 	if reliable: rh_no_id |= 0x8000
 	if ordered:  rh_no_id |= 0x4000
 	rh_no_id |= (channel & 0x3) << 12
-
-	# 40-bit player mask: bit N = send to player N.  0xFF (TO_ALL_PLAYERS) → all 40 bits.
-	var player_mask: int
-	if to_net_id >= _MAX_PLAYERS:
-		player_mask = (1 << _MAX_PLAYERS) - 1
-	else:
-		player_mask = 1 << to_net_id
 
 	# Invert bit order to match server encoding, then shift left 8
 	var pm: int = 0
@@ -227,7 +250,10 @@ func _process(delta: float) -> void:
 					if _system_callback.is_valid():
 						_system_callback.call({"op": "DISCONNECT"})
 		_:
-			pass # CONNECTING — still establishing the transport-level connection
+			# CONNECTING — still establishing the transport-level connection. Give up after
+			# _CONNECT_TIMEOUT_MS instead of waiting forever (see the constant's comment).
+			if _state == _State.CONNECTING and Time.get_ticks_msec() - _last_recv_time_ms > _CONNECT_TIMEOUT_MS:
+				_fail_transport("Relay %s connect timed out after %dms" % [_transport_kind.to_upper(), _CONNECT_TIMEOUT_MS])
 
 func _tick_udp_reliables() -> void:
 	var now := Time.get_ticks_msec()
@@ -457,8 +483,18 @@ func _on_rsmg(data: PackedByteArray) -> void:
 	print("[RelayComms] RSMG op='%s' msg=%s" % [op, str(msg)])
 	if op == "CONNECT" and _state == _State.HANDSHAKE:
 		_net_id = msg.get("netId", -1)
+		_register_net_id(_client_ref._rtt_comms.get_connection_id(), _net_id)
 		_state = _State.CONNECTED
 		_send_ping()
 		connect_result.emit({"status": 200, "data": msg})
-	elif _system_callback.is_valid():
-		_system_callback.call(msg)
+	else:
+		if op == "CONNECT" or op == "NET_ID":
+			_register_net_id(msg.get("cxId", ""), msg.get("netId", -1))
+		if _system_callback.is_valid():
+			_system_callback.call(msg)
+
+func _register_net_id(cx_id: String, net_id: int) -> void:
+	if cx_id.is_empty() or net_id < 0:
+		return
+	_cx_to_net_id[cx_id] = net_id
+	_net_id_to_cx[net_id] = cx_id

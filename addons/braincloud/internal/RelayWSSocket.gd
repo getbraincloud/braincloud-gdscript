@@ -16,7 +16,13 @@ func connect_to(host: String, port: int, use_ssl: bool) -> Error:
 	var url := "%s://%s:%d/" % [scheme, host, port]
 
 	# libwebsockets relay servers reject upgrades without an Origin header (RFC 6455 §10.2).
-	_ws.handshake_headers = PackedStringArray(["Origin: http://%s:%d" % [host, port]])
+	# Scheme must track use_ssl — an "http://" Origin on a "wss://" handshake is a scheme
+	# mismatch some servers/proxies reject outright, breaking wss specifically while ws
+	# keeps working. (On Web export this header is set by the browser itself and this line
+	# has no effect — browsers forbid scripts from overriding Origin — but it's still what
+	# actually goes out on native desktop exports, where WebSocketPeer is Godot's own.)
+	var origin_scheme := "https" if use_ssl else "http"
+	_ws.handshake_headers = PackedStringArray(["Origin: %s://%s:%d" % [origin_scheme, host, port]])
 	var tls_opts := TLSOptions.client_unsafe() if use_ssl else null
 	print("[RelayWSSocket] connecting to: ", url)
 	var err := _ws.connect_to_url(url, tls_opts)
