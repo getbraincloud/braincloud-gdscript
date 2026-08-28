@@ -178,7 +178,7 @@ func get_global_leaderboard_versions(leaderboard_id: String) -> Dictionary:
 func post_score_to_leaderboard(leaderboard_id: String, score: int, json_other_data: Dictionary) -> Dictionary:
 	var data := {
 		OperationParam.SOCIAL_LEADERBOARD_SERVICE_LEADERBOARD_ID: leaderboard_id,
-		OperationParam.SOCIAL_LEADERBOARD_SERVICE_BEST_SCORE: score,
+		OperationParam.SOCIAL_LEADERBOARD_SERVICE_SCORE: score,
 		OperationParam.SOCIAL_LEADERBOARD_SERVICE_DATA: json_other_data
 	}
 	return await _send(ServiceOperation.POST_SCORE, data)

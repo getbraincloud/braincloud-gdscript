@@ -2,14 +2,88 @@
 class_name BrainCloudLobby
 extends RefCounted
 
+const _PING_MAX_CALLS := 4       # samples per region before dropping the slowest and averaging
+const _PING_PARALLEL_CALLS := 2  # samples in flight at once
+const _PING_TIMEOUT_SEC := 2.0
+
 var _client_ref: BrainCloudClient
 var _ping_data: Dictionary = {}
+var _ping_regions_targets: Dictionary = {}  # region -> regionPingData entry, from get_regions_for_lobbies
 
 func _init(client_ref: BrainCloudClient) -> void:
 	_client_ref = client_ref
 
 func set_ping_data(ping_data: Dictionary) -> void:
 	_ping_data = ping_data
+
+## Returns the most recently measured region ping data (region -> ms). Same data set_ping_data
+## has been given / attached to a *WithPingData call.
+func get_ping_data() -> Dictionary:
+	return _ping_data
+
+## Returns the regions ping_regions() will actually measure — populated by the most recent
+## get_regions_for_lobbies() call, filtered to its "PING"-type entries.
+func get_ping_target_regions() -> Array:
+	return _ping_regions_targets.keys()
+
+## Pings every region returned by the most recent get_regions_for_lobbies() call and stores the
+## averaged results (see get_ping_data()) — mirrors the C++/C#/JS SDKs' client-side PingRegions:
+## each region is sampled _PING_MAX_CALLS times (_PING_PARALLEL_CALLS in flight at once), the
+## single slowest sample is dropped, and the rest are averaged.
+##
+## @param on_region_done Optional Callable(region: String, ms: int) invoked as each region's
+##        average completes, for callers that want to show live per-region progress
+## @return The region -> ms map (same as get_ping_data() afterwards)
+func ping_regions(on_region_done: Callable = Callable()) -> Dictionary:
+	_ping_data.clear()
+	for region: String in _ping_regions_targets.keys():
+		var ms: int = await _ping_region(_ping_regions_targets[region])
+		_ping_data[region] = ms
+		if on_region_done.is_valid():
+			on_region_done.call(region, ms)
+	return _ping_data
+
+func _ping_region(info: Dictionary) -> int:
+	var target: String = info.get("target", "")
+	if target.is_empty():
+		return 999
+	var ping_port: int = int(info.get("pingPort", 80))
+	var url := "http://%s:%d/" % [target, ping_port]
+
+	var samples: Array = []
+	while samples.size() < _PING_MAX_CALLS:
+		# request() itself isn't a coroutine — it just kicks the request off — so every
+		# HTTPRequest in this batch starts (and runs) concurrently even though we only
+		# `await` their request_completed signals one at a time, below.
+		var batch_size := mini(_PING_PARALLEL_CALLS, _PING_MAX_CALLS - samples.size())
+		var requests: Array = []
+		var start_times: Array = []
+		for i in range(batch_size):
+			var http := HTTPRequest.new()
+			http.timeout = _PING_TIMEOUT_SEC
+			_client_ref.add_child(http)
+			start_times.append(Time.get_ticks_msec())
+			if http.request(url, [], HTTPClient.METHOD_HEAD) == OK:
+				requests.append(http)
+			else:
+				http.queue_free()
+				requests.append(null)
+
+		for i in range(requests.size()):
+			var http: HTTPRequest = requests[i]
+			if http == null:
+				samples.append(999)
+				continue
+			await http.request_completed
+			samples.append(mini(int(Time.get_ticks_msec() - start_times[i]), 999))
+			http.queue_free()
+
+	samples.sort()
+	samples.resize(samples.size() - 1)  # drop the slowest sample
+	var total := 0
+	for s in samples:
+		total += s
+	return int(round(float(total) / samples.size()))
 
 ## Finds a lobby matching the specified parameters. Asynchronous - listen to RTT lobby events for updates.
 ##
@@ -331,7 +405,15 @@ func get_regions_for_lobbies(lobby_types: Array) -> Dictionary:
 	var data := {
 		OperationParam.LOBBY_TYPES: lobby_types
 	}
-	return await _send(ServiceOperation.LOBBY_GET_REGIONS, data)
+	var result := await _send(ServiceOperation.LOBBY_GET_REGIONS, data)
+	if result.get("status", 0) == 200:
+		_ping_regions_targets.clear()
+		var region_ping_data: Dictionary = result.get("data", {}).get("regionPingData", {})
+		for region: String in region_ping_data.keys():
+			var info: Dictionary = region_ping_data[region]
+			if info.get("type", "PING") == "PING":
+				_ping_regions_targets[region] = info
+	return result
 
 ## Gets a list of pending lobbies filtered by lobby type and criteria.
 ##

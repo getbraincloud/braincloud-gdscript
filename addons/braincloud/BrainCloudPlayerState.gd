@@ -45,18 +45,9 @@ func logout() -> Dictionary:
 ## Service Name - PlayerState[br]
 ## Service Operation - UPDATE_NAME
 ##
-## @param player_name The name of the user
-func update_name(player_name: String) -> Dictionary:
-	return await _send(ServiceOperation.UPDATE_NAME, {OperationParam.PLAYER_STATE_SERVICE_UPDATE_NAME: player_name})
-
-## Sets the user's name. Alias for update_name.
-##
-## Service Name - PlayerState[br]
-## Service Operation - UPDATE_NAME
-##
-## @param player_name The name of the user
-func update_player_name(player_name: String) -> Dictionary:
-	return await update_name(player_name)
+## @param user_name The name of the user
+func update_name(user_name: String) -> Dictionary:
+	return await _send(ServiceOperation.UPDATE_NAME, {OperationParam.PLAYER_STATE_SERVICE_UPDATE_NAME: user_name})
 
 ## Updates the "friend summary data" associated with the logged in user.
 ## This data is returned in social leaderboards and other summary operations.
@@ -94,15 +85,6 @@ func update_picture_url(picture_url: String) -> Dictionary:
 ## @param contact_email Updated email address
 func update_contact_email(contact_email: String) -> Dictionary:
 	return await _send(ServiceOperation.UPDATE_CONTACT_EMAIL, {OperationParam.PLAYER_STATE_SERVICE_CONTACT_EMAIL: contact_email})
-
-## Updates the user's display name.
-##
-## Service Name - PlayerState[br]
-## Service Operation - UPDATE_USER_NAME
-##
-## @param user_name The new display name
-func update_user_name(user_name: String) -> Dictionary:
-	return await _send(ServiceOperation.UPDATE_USER_NAME, {OperationParam.PLAYER_STATE_SERVICE_NEW_NAME: user_name})
 
 ## Updates the user's attributes.
 ##

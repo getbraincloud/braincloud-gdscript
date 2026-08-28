@@ -178,15 +178,22 @@ func reset_stored_profile_id() -> void:
 func reset_stored_anonymous_id() -> void:
 	_save_pref(PREFS_ANONYMOUS_ID, "")
 
+func _prefs_path() -> String:
+	return "user://" + wrapper_name + "BrainCloudWrapper.cfg"
+
 func _load_pref(key: String) -> String:
 	var section := "brainCloud" + wrapper_name
-	if not ProjectSettings.has_setting(section + "/" + key):
+	var cfg := ConfigFile.new()
+	if cfg.load(_prefs_path()) != OK:
 		return ""
-	return str(ProjectSettings.get_setting(section + "/" + key, ""))
+	return str(cfg.get_value(section, key, ""))
 
 func _save_pref(key: String, value: String) -> void:
 	var section := "brainCloud" + wrapper_name
-	ProjectSettings.set_setting(section + "/" + key, value)
+	var cfg := ConfigFile.new()
+	cfg.load(_prefs_path())
+	cfg.set_value(section, key, value)
+	cfg.save(_prefs_path())
 
 func authenticate_anonymous(force_create: bool = true) -> Dictionary:
 	var anonymous_id := get_stored_anonymous_id()

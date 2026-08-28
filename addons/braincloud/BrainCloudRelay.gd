@@ -20,7 +20,8 @@ func _init(client_ref: BrainCloudClient, relay_comms: BrainCloudRelayComms) -> v
 
 ## Connects to a relay server.
 ##
-## @param connect_options Dictionary with keys: host, port, ssl, lobbyId, passcode
+## @param connect_options Dictionary with keys: host, port, ssl, lobbyId, passcode,
+##        protocol ("ws" | "wss" | "tcp" | "udp", defaults to "ws"/"wss" based on ssl)
 ## @param success_cb Callable invoked on successful connection
 ## @param failure_cb Callable invoked if connection fails
 func relay_connect(connect_options: Dictionary, success_cb: Callable, failure_cb: Callable) -> void:
@@ -32,8 +33,9 @@ func relay_connect(connect_options: Dictionary, success_cb: Callable, failure_cb
 	var use_ssl: bool = connect_options.get("ssl", false)
 	var lobby_id: String = connect_options.get("lobbyId", "")
 	var passcode: String = connect_options.get("passcode", "")
+	var protocol: String = connect_options.get("protocol", "wss" if use_ssl else "ws")
 
-	_relay_comms.connect_relay(host, port, use_ssl, lobby_id, passcode)
+	_relay_comms.connect_relay(host, port, use_ssl, lobby_id, passcode, protocol)
 	var result: Dictionary = await _relay_comms.connect_result
 
 	if result.get("status", 0) == 200:
@@ -60,6 +62,26 @@ func relay_is_connected() -> bool:
 ## @param channel The channel to send on (CHANNEL_HIGH_PRIORITY_1 through CHANNEL_LOW_PRIORITY)
 func send(data: PackedByteArray, to_net_id: int, reliable: bool, ordered: bool, channel: int) -> void:
 	_relay_comms.send_relay(data, to_net_id, reliable, ordered, channel)
+
+## Sends data to an arbitrary subset of players via a 40-bit player mask (bit N = deliver to
+## the player whose net id is N). Build the mask from get_net_id_for_cx_id() lookups.
+##
+## @param data The data to send as a PackedByteArray
+## @param player_mask 40-bit mask; bit N set = deliver to the player with net id N
+## @param reliable Whether to send the data reliably
+## @param ordered Whether to maintain message order
+## @param channel The channel to send on (CHANNEL_HIGH_PRIORITY_1 through CHANNEL_LOW_PRIORITY)
+func send_to_players(data: PackedByteArray, player_mask: int, reliable: bool, ordered: bool, channel: int) -> void:
+	_relay_comms.send_relay_to_mask(data, player_mask, reliable, ordered, channel)
+
+## Returns the net id of the player with the given connection id, or -1 if not known yet
+## (e.g. no CONNECT/NET_ID system message has been received for them).
+func get_net_id_for_cx_id(cx_id: String) -> int:
+	return _relay_comms.get_net_id_for_cx_id(cx_id)
+
+## Returns the connection id of the player with the given net id, or "" if not known.
+func get_cx_id_for_net_id(net_id: int) -> String:
+	return _relay_comms.get_cx_id_for_net_id(net_id)
 
 ## Registers a callback for incoming relay data messages.
 ##
