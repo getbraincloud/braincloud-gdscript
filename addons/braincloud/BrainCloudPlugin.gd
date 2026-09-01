@@ -19,9 +19,13 @@ const _BC_WARN_LIGHT := Color("#FF832B")  # orange — light themes
 const _LOGO_PATH       := "res://addons/braincloud/braincloud_logo.png"        # white text — dark themes
 const _LOGO_PATH_LIGHT := "res://addons/braincloud/braincloud_logo_light.png"  # dark text — light themes
 
+# Most projects should just point at prod — this is what the "Use Default
+# brainCloud Server" checkbox forces the Server URL field to.
+const _DEFAULT_SERVER_URL := "https://api.braincloudservers.com/dispatcherv2"
+
 # Only non-sensitive settings live in project.godot
 const _SETTINGS := [
-	{"name": "braincloud/config/server_url",    "type": TYPE_STRING, "default": "https://api.braincloudservers.com/dispatcherv2"},
+	{"name": "braincloud/config/server_url",    "type": TYPE_STRING, "default": _DEFAULT_SERVER_URL},
 	{"name": "braincloud/config/app_version",   "type": TYPE_STRING, "default": "1.0.0"},
 	{"name": "braincloud/debug/enable_logging", "type": TYPE_BOOL,   "default": false},
 ]
@@ -33,11 +37,58 @@ const _LINKS := [
 	{"label": "GDScript SDK",  "url": "https://github.com/getbraincloud/braincloud-gdscript"},
 ]
 
+# Full server-validated OS/auth platform enum (IClientOsPlatformManager on the
+# server — an unrecognized value here is silently dropped, not rejected, by
+# app creation), used for the "Create New App" checkboxes. Windows/Mac/Linux
+# default on, matching braincloud-unity-plugin's defaults.
+const _CREATE_APP_PLATFORMS := [
+	{"id": "WINDOWS",      "label": "Windows",         "default": true },
+	{"id": "MAC",          "label": "Mac",             "default": true },
+	{"id": "LINUX",        "label": "Linux",           "default": true },
+	{"id": "WEB",          "label": "Web",             "default": false},
+	{"id": "IOS",          "label": "iOS",             "default": false},
+	{"id": "ANG",          "label": "Android",         "default": false},
+	{"id": "AMAZON",       "label": "Amazon",          "default": false},
+	{"id": "APPLE_TV_OS",  "label": "Apple tvOS",      "default": false},
+	{"id": "VISION_OS",    "label": "Apple visionOS",  "default": false},
+	{"id": "WATCH_OS",     "label": "Apple watchOS",   "default": false},
+	{"id": "BB",           "label": "BlackBerry",      "default": false},
+	{"id": "FB",           "label": "Facebook",        "default": false},
+	{"id": "NINTENDO",     "label": "Nintendo",        "default": false},
+	{"id": "OCULUS",       "label": "Oculus",          "default": false},
+	{"id": "PS3",          "label": "PlayStation 3",   "default": false},
+	{"id": "PS4",          "label": "PlayStation 4",   "default": false},
+	{"id": "PS_VITA",      "label": "PlayStation Vita","default": false},
+	{"id": "ROKU",         "label": "Roku",            "default": false},
+	{"id": "STEAM",        "label": "Steam",           "default": false},
+	{"id": "TIZEN",        "label": "Tizen",           "default": false},
+	{"id": "WII",          "label": "Wii",             "default": false},
+	{"id": "WINP",         "label": "Windows Phone",   "default": false},
+	{"id": "XBOX_ONE",     "label": "Xbox One",        "default": false},
+	{"id": "XBOX_360",     "label": "Xbox 360",        "default": false},
+	{"id": "UNKNOWN",      "label": "Unknown",         "default": false},
+]
+
 var _panel_control: Control = null
 
 # Nodes that need to swap when the editor theme changes
 var _logo_png:   TextureRect = null  # swaps between dark-bg and light-bg variant
 var _warn_label: Label       = null  # brand orange — cannot inherit from theme
+
+# brainCloud account (OAuth + Builder API) login/team/app flow
+var _login_flow: BrainCloudLoginFlow = null
+var _account_container: Control = null
+var _cred_fields: Dictionary = {}
+var _log_check: CheckBox = null
+var _status_label: Label = null
+var _show_create_app: bool = false
+var _new_app_name: String = ""
+var _new_app_name_edit: LineEdit = null
+var _new_app_platform_state: Dictionary = {}
+var _create_with_template: bool = false
+var _selected_template_id: String = ""
+var _creds_fields_box: Control = null
+var _creds_header: Button = null
 
 
 func _enter_tree() -> void:
@@ -51,6 +102,14 @@ func _enter_tree() -> void:
 	add_tool_menu_item(_MENU_ITEM, _focus_panel)
 	get_editor_interface().get_editor_settings().settings_changed.connect(_update_panel_theme)
 
+	_login_flow = BrainCloudLoginFlow.new()
+	_login_flow.configure(_CREDS_PATH, _panel_control)
+	_login_flow.state_changed.connect(_refresh_account_section)
+	_login_flow.app_selected.connect(_on_app_selected)
+	_refresh_account_section()
+	if _login_flow.is_logged_in() and _login_flow.teams.is_empty():
+		_login_flow.refresh_teams()
+
 
 func _exit_tree() -> void:
 	var es := get_editor_interface().get_editor_settings()
@@ -63,6 +122,15 @@ func _exit_tree() -> void:
 		remove_control_from_docks(_panel_control)
 		_panel_control.queue_free()
 	_panel_control = null
+
+	if _login_flow != null:
+		_login_flow.cancel_login()
+		_login_flow = null
+
+
+func _process(_delta: float) -> void:
+	if _login_flow != null:
+		_login_flow.poll()
 
 
 func _focus_panel() -> void:
@@ -169,6 +237,18 @@ func _build_panel() -> Control:
 
 	root.add_child(_horiz_sep())
 
+	# ── brainCloud Account (OAuth + Builder API login/team/app) ─────────────
+	var acct_margin := MarginContainer.new()
+	for s in ["left", "right", "top", "bottom"]:
+		acct_margin.add_theme_constant_override("margin_" + s, 8)
+	root.add_child(acct_margin)
+
+	_account_container = VBoxContainer.new()
+	_account_container.add_theme_constant_override("separation", 4)
+	acct_margin.add_child(_account_container)
+
+	root.add_child(_horiz_sep())
+
 	# ── Credentials ───────────────────────────────────────────────────────
 	var cred_margin := MarginContainer.new()
 	for s in ["left", "right", "top", "bottom"]:
@@ -179,26 +259,94 @@ func _build_panel() -> Control:
 	cvbox.add_theme_constant_override("separation", 4)
 	cred_margin.add_child(cvbox)
 
-	cvbox.add_child(_section_lbl("App Credentials"))
+	var fields: Dictionary = {}
+
+	# ── Server (always visible — most projects just use the default prod URL) ──
+	var initial_server_url := _read_setting("server_url")
+
+	var use_default_check := CheckBox.new()
+	use_default_check.text           = "Use Default brainCloud Server"
+	use_default_check.button_pressed = initial_server_url.is_empty() or initial_server_url == _DEFAULT_SERVER_URL
+	use_default_check.add_theme_font_size_override("font_size", 11)
+	cvbox.add_child(use_default_check)
+
+	var server_lbl := Label.new()
+	server_lbl.text = "Server URL"
+	server_lbl.add_theme_font_size_override("font_size", 11)
+	cvbox.add_child(server_lbl)
+
+	var server_edit := LineEdit.new()
+	server_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	server_edit.clear_button_enabled  = true
+	server_edit.text                  = initial_server_url if not initial_server_url.is_empty() else _DEFAULT_SERVER_URL
+	server_edit.add_theme_font_size_override("font_size", 11)
+	cvbox.add_child(server_edit)
+	fields["server_url"] = server_edit
+
+	# Checked = hide the URL entirely (nothing to look at or edit); unchecked =
+	# reveal the label + field for a custom value.
+	var apply_default_server := func(use_default: bool):
+		server_lbl.visible  = not use_default
+		server_edit.visible = not use_default
+		if use_default:
+			server_edit.text = _DEFAULT_SERVER_URL
+	apply_default_server.call(use_default_check.button_pressed)
+	use_default_check.toggled.connect(apply_default_server)
+
+	var app_ver_lbl := Label.new()
+	app_ver_lbl.text = "App Version"
+	app_ver_lbl.add_theme_font_size_override("font_size", 11)
+	cvbox.add_child(app_ver_lbl)
+
+	var app_ver_edit := LineEdit.new()
+	app_ver_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	app_ver_edit.clear_button_enabled  = true
+	app_ver_edit.text                  = _read_setting("app_version")
+	app_ver_edit.add_theme_font_size_override("font_size", 11)
+	cvbox.add_child(app_ver_edit)
+	fields["app_version"] = app_ver_edit
+
+	cvbox.add_child(_horiz_sep())
+
+	# Collapsed by default — once the Account section above configures the app,
+	# there's rarely a need to look at raw App ID/Secret. Click to expand for
+	# manual entry (e.g. no portal login) or to copy/inspect values.
+	_creds_header = Button.new()
+	_creds_header.text                  = "▸ APP CREDENTIALS"
+	_creds_header.flat                  = true
+	_creds_header.alignment             = HORIZONTAL_ALIGNMENT_LEFT
+	_creds_header.focus_mode            = Control.FOCUS_NONE
+	_creds_header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_creds_header.add_theme_font_size_override("font_size", 10)
+	_creds_header.add_theme_color_override("font_color", _BC_BLUE)
+	_creds_header.add_theme_color_override("font_hover_color", _BC_BLUE.lightened(0.15))
+	cvbox.add_child(_creds_header)
+
+	_creds_fields_box = VBoxContainer.new()
+	_creds_fields_box.add_theme_constant_override("separation", 4)
+	_creds_fields_box.visible = false
+	cvbox.add_child(_creds_fields_box)
+
+	var on_creds_header_pressed := func():
+		_creds_fields_box.visible = not _creds_fields_box.visible
+		_creds_header.text = ("▾ " if _creds_fields_box.visible else "▸ ") + "APP CREDENTIALS"
+	_creds_header.pressed.connect(on_creds_header_pressed)
 
 	var field_defs := [
 		["App ID",      "app_id",      false],
 		["App Secret",  "app_secret",  true ],
-		["Server URL",  "server_url",  false],
-		["App Version", "app_version", false],
 	]
-	var fields: Dictionary = {}
 
 	for fd in field_defs:
 		# No font_color override — inherits correctly from the editor theme
 		var flbl := Label.new()
 		flbl.text = fd[0]
 		flbl.add_theme_font_size_override("font_size", 11)
-		cvbox.add_child(flbl)
+		_creds_fields_box.add_child(flbl)
 
 		var edit_row := HBoxContainer.new()
 		edit_row.add_theme_constant_override("separation", 4)
-		cvbox.add_child(edit_row)
+		_creds_fields_box.add_child(edit_row)
 
 		var edit := LineEdit.new()
 		edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -224,13 +372,16 @@ func _build_panel() -> Control:
 
 		fields[fd[1]] = edit
 
+	_cred_fields = fields
+
 	var log_check := CheckBox.new()
 	log_check.text                  = "Debug Logging"
 	log_check.button_pressed        = bool(ProjectSettings.get_setting(
 		"braincloud/debug/enable_logging", false))
 	log_check.add_theme_font_size_override("font_size", 11)
 	log_check.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cvbox.add_child(log_check)
+	_creds_fields_box.add_child(log_check)
+	_log_check = log_check
 
 	var status := Label.new()
 	status.text                  = ""
@@ -238,7 +389,8 @@ func _build_panel() -> Control:
 	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	status.add_theme_font_size_override("font_size", 11)
 	status.autowrap_mode         = TextServer.AUTOWRAP_WORD_SMART
-	cvbox.add_child(status)
+	_creds_fields_box.add_child(status)
+	_status_label = status
 
 	var save_btn := Button.new()
 	save_btn.text                  = "Save"
@@ -246,13 +398,13 @@ func _build_panel() -> Control:
 	save_btn.custom_minimum_size   = Vector2(0, 28)
 	_style_primary(save_btn)
 	save_btn.pressed.connect(_on_save.bind(fields, log_check, status))
-	cvbox.add_child(save_btn)
+	_creds_fields_box.add_child(save_btn)
 
 	_warn_label = Label.new()
 	_warn_label.text          = "⚠  braincloud.cfg is gitignored"
 	_warn_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_warn_label.add_theme_font_size_override("font_size", 11)
-	cvbox.add_child(_warn_label)
+	_creds_fields_box.add_child(_warn_label)
 
 	root.add_child(_horiz_sep())
 
@@ -275,6 +427,338 @@ func _build_panel() -> Control:
 	_update_panel_theme()
 
 	return scroll
+
+
+# ── brainCloud Account (OAuth + Builder API) ────────────────────────────────────
+
+func _refresh_account_section() -> void:
+	if not is_instance_valid(_account_container):
+		return
+	for child in _account_container.get_children():
+		_account_container.remove_child(child)
+		child.queue_free()
+
+	if _login_flow == null:
+		return
+
+	if _login_flow.is_logging_in():
+		_build_logging_in_view()
+	elif _login_flow.is_logged_in():
+		_build_logged_in_view()
+	else:
+		_build_login_view()
+
+
+func _collapse_credentials() -> void:
+	if is_instance_valid(_creds_fields_box):
+		_creds_fields_box.visible = false
+	if is_instance_valid(_creds_header):
+		_creds_header.text = "▸ APP CREDENTIALS"
+
+
+func _build_login_view() -> void:
+	_collapse_credentials()
+	_account_container.add_child(_section_lbl("brainCloud Account"))
+
+	var desc := Label.new()
+	desc.text          = "Go to the brainCloud portal to view more advanced configurations of your project and to find additional resources."
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	desc.add_theme_font_size_override("font_size", 11)
+	_account_container.add_child(desc)
+
+	var portal_link := LinkButton.new()
+	portal_link.text = "brainCloud Portal"
+	portal_link.add_theme_font_size_override("font_size", 11)
+	portal_link.add_theme_color_override("font_color", _BC_BLUE)
+	portal_link.pressed.connect(func(): OS.shell_open(_portal_url()))
+	_account_container.add_child(portal_link)
+
+	if not _login_flow.error_message.is_empty():
+		_account_container.add_child(_error_lbl(_login_flow.error_message))
+
+	var login_btn := Button.new()
+	login_btn.text                  = "Log in with brainCloud"
+	login_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	login_btn.custom_minimum_size   = Vector2(0, 28)
+	_style_primary(login_btn)
+	login_btn.pressed.connect(_on_login_pressed)
+	_account_container.add_child(login_btn)
+
+
+func _build_logging_in_view() -> void:
+	_account_container.add_child(_section_lbl("brainCloud Account"))
+
+	var status := Label.new()
+	status.text                  = "Waiting for browser login…"
+	status.horizontal_alignment  = HORIZONTAL_ALIGNMENT_CENTER
+	status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status.add_theme_font_size_override("font_size", 11)
+	_account_container.add_child(status)
+
+	var cancel_btn := Button.new()
+	cancel_btn.text                  = "Cancel"
+	cancel_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cancel_btn.custom_minimum_size   = Vector2(0, 28)
+	cancel_btn.pressed.connect(_login_flow.cancel_login)
+	_account_container.add_child(cancel_btn)
+
+
+func _build_logged_in_view() -> void:
+	_account_container.add_child(_section_lbl("brainCloud Account"))
+
+	if not _login_flow.email.is_empty():
+		var who := Label.new()
+		who.text = _login_flow.email
+		who.add_theme_font_size_override("font_size", 10)
+		_account_container.add_child(who)
+
+	if not _login_flow.error_message.is_empty():
+		_account_container.add_child(_error_lbl(_login_flow.error_message))
+
+	# Team picker
+	var team_lbl := Label.new()
+	team_lbl.text = "Team"
+	team_lbl.add_theme_font_size_override("font_size", 11)
+	_account_container.add_child(team_lbl)
+
+	var team_row := HBoxContainer.new()
+	team_row.add_theme_constant_override("separation", 4)
+	_account_container.add_child(team_row)
+
+	var team_option := OptionButton.new()
+	team_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	team_option.add_theme_font_size_override("font_size", 11)
+	for i in _login_flow.teams.size():
+		var t: Dictionary = _login_flow.teams[i]
+		team_option.add_item(t["name"])
+		if t["id"] == _login_flow.team_id:
+			team_option.select(i)
+	var on_team_selected := func(idx: int):
+		_show_create_app = false
+		_login_flow.select_team(_login_flow.teams[idx]["id"])
+		_refresh_account_section()
+	team_option.item_selected.connect(on_team_selected)
+	team_row.add_child(team_option)
+	team_row.add_child(_refresh_btn(_login_flow.refresh_teams))
+
+	# App picker
+	var app_lbl := Label.new()
+	app_lbl.text = "App"
+	app_lbl.add_theme_font_size_override("font_size", 11)
+	_account_container.add_child(app_lbl)
+
+	var app_row := HBoxContainer.new()
+	app_row.add_theme_constant_override("separation", 4)
+	_account_container.add_child(app_row)
+
+	var app_option := OptionButton.new()
+	app_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	app_option.add_theme_font_size_override("font_size", 11)
+	var current_app_id: String = (_cred_fields["app_id"] as LineEdit).text.strip_edges() if _cred_fields.has("app_id") else ""
+	var selected_idx := 0
+	for i in _login_flow.apps.size():
+		app_option.add_item(_login_flow.apps[i]["name"])
+		if not _show_create_app and _login_flow.apps[i]["id"] == current_app_id and not current_app_id.is_empty():
+			selected_idx = i
+	if app_option.item_count > 0:
+		app_option.select(selected_idx)
+	var is_create_selected: bool = app_option.item_count > 0 and _login_flow.apps[selected_idx]["id"] == BrainCloudLoginFlow.CREATE_NEW_APP_ID
+	_show_create_app = is_create_selected
+
+	var on_app_selected_ui := func(idx: int):
+		var a: Dictionary = _login_flow.apps[idx]
+		# Only ever show Create New App / template UI when that sentinel is the
+		# active dropdown choice — rebuild immediately either way so picking a
+		# real app hides it right away instead of lingering from before.
+		_show_create_app = a["id"] == BrainCloudLoginFlow.CREATE_NEW_APP_ID
+		if not _show_create_app:
+			_login_flow.select_app(a["id"])
+		_refresh_account_section()
+	app_option.item_selected.connect(on_app_selected_ui)
+	app_row.add_child(app_option)
+	app_row.add_child(_refresh_btn(_login_flow.download_app_list.bind(true)))
+
+	if is_create_selected:
+		_account_container.add_child(_build_create_app_fields())
+
+	var logout_btn := Button.new()
+	logout_btn.text                  = "Log out"
+	logout_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	logout_btn.custom_minimum_size   = Vector2(0, 24)
+	var on_logout_pressed := func():
+		_show_create_app = false
+		_login_flow.logout()
+	logout_btn.pressed.connect(on_logout_pressed)
+	_account_container.add_child(logout_btn)
+
+
+func _build_create_app_fields() -> Control:
+	if _new_app_platform_state.is_empty():
+		for p in _CREATE_APP_PLATFORMS:
+			_new_app_platform_state[p["id"]] = p["default"]
+
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+
+	var name_lbl := Label.new()
+	name_lbl.text = "App Name"
+	name_lbl.add_theme_font_size_override("font_size", 11)
+	box.add_child(name_lbl)
+
+	_new_app_name_edit = LineEdit.new()
+	_new_app_name_edit.placeholder_text        = "New brainCloud App Name"
+	_new_app_name_edit.text                    = _new_app_name
+	_new_app_name_edit.size_flags_horizontal   = Control.SIZE_EXPAND_FILL
+	_new_app_name_edit.add_theme_font_size_override("font_size", 11)
+	var on_name_changed := func(new_text: String): _new_app_name = new_text
+	_new_app_name_edit.text_changed.connect(on_name_changed)
+	box.add_child(_new_app_name_edit)
+
+	var template_check := CheckBox.new()
+	template_check.text           = "Create using Template"
+	template_check.button_pressed = _create_with_template
+	template_check.add_theme_font_size_override("font_size", 11)
+	var on_template_toggled := func(pressed: bool):
+		_create_with_template = pressed
+		if pressed:
+			_login_flow.download_template_list()
+		_refresh_account_section()
+	template_check.toggled.connect(on_template_toggled)
+	box.add_child(template_check)
+
+	if _create_with_template:
+		box.add_child(_build_template_picker())
+	else:
+		box.add_child(_build_platform_checks())
+
+	var create_btn := Button.new()
+	create_btn.text                  = "Create App"
+	create_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	create_btn.custom_minimum_size   = Vector2(0, 28)
+	_style_primary(create_btn)
+	create_btn.pressed.connect(_on_create_app_pressed)
+	box.add_child(create_btn)
+
+	return box
+
+
+func _build_platform_checks() -> Control:
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+
+	var plat_lbl := Label.new()
+	plat_lbl.text = "Platforms"
+	plat_lbl.add_theme_font_size_override("font_size", 11)
+	vbox.add_child(plat_lbl)
+
+	var grid := GridContainer.new()
+	grid.columns = 2
+	for p in _CREATE_APP_PLATFORMS:
+		var cb := CheckBox.new()
+		cb.text                  = p["label"]
+		cb.button_pressed        = bool(_new_app_platform_state.get(p["id"], p["default"]))
+		cb.add_theme_font_size_override("font_size", 10)
+		var platform_id: String = p["id"]
+		var on_platform_toggled := func(pressed: bool): _new_app_platform_state[platform_id] = pressed
+		cb.toggled.connect(on_platform_toggled)
+		grid.add_child(cb)
+	vbox.add_child(grid)
+
+	return vbox
+
+
+func _build_template_picker() -> Control:
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+
+	var lbl := Label.new()
+	lbl.text = "Template"
+	lbl.add_theme_font_size_override("font_size", 11)
+	vbox.add_child(lbl)
+
+	if _login_flow.templates.is_empty():
+		var loading := Label.new()
+		loading.text = "Loading templates…"
+		loading.add_theme_font_size_override("font_size", 10)
+		vbox.add_child(loading)
+		return vbox
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	vbox.add_child(row)
+
+	var option := OptionButton.new()
+	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	option.add_theme_font_size_override("font_size", 11)
+	for i in _login_flow.templates.size():
+		var t: Dictionary = _login_flow.templates[i]
+		option.add_item(t["name"])
+		if t["id"] == _selected_template_id:
+			option.select(i)
+	if option.selected == -1 and option.item_count > 0:
+		option.select(0)
+		_selected_template_id = _login_flow.templates[0]["id"]
+	var on_template_selected := func(idx: int):
+		_selected_template_id = _login_flow.templates[idx]["id"]
+	option.item_selected.connect(on_template_selected)
+	row.add_child(option)
+	row.add_child(_refresh_btn(_login_flow.download_template_list.bind(true)))
+
+	return vbox
+
+
+func _refresh_btn(callback: Callable) -> Button:
+	var btn := Button.new()
+	btn.text                  = "⟳"
+	btn.tooltip_text          = "Refresh"
+	btn.custom_minimum_size   = Vector2(28, 0)
+	btn.flat                  = true
+	btn.focus_mode            = Control.FOCUS_NONE
+	btn.add_theme_font_size_override("font_size", 12)
+	btn.pressed.connect(callback)
+	return btn
+
+
+func _error_lbl(text: String) -> Label:
+	var lbl := Label.new()
+	lbl.text          = text
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_color_override("font_color", Color("#dd5555"))
+	return lbl
+
+
+func _current_server_url() -> String:
+	var server_url := ""
+	if _cred_fields.has("server_url"):
+		server_url = (_cred_fields["server_url"] as LineEdit).text.strip_edges()
+	if server_url.is_empty():
+		server_url = _read_setting("server_url")
+	return server_url
+
+
+func _portal_url() -> String:
+	return BrainCloudBuilderApi.portal_host(_current_server_url())
+
+
+func _on_login_pressed() -> void:
+	_login_flow.set_base_host(BrainCloudBuilderApi.base_host(_current_server_url()))
+	_login_flow.login()
+
+
+func _on_create_app_pressed() -> void:
+	var platforms: Array = []
+	for p in _CREATE_APP_PLATFORMS:
+		if bool(_new_app_platform_state.get(p["id"], p["default"])):
+			platforms.append(p["id"])
+	var template_id := _selected_template_id if _create_with_template else ""
+	_login_flow.create_app(_new_app_name, platforms, template_id)
+
+
+func _on_app_selected(app_id: String, app_secret: String) -> void:
+	(_cred_fields["app_id"] as LineEdit).text     = app_id
+	(_cred_fields["app_secret"] as LineEdit).text = app_secret
+	_on_save(_cred_fields, _log_check, _status_label)
 
 
 # ── Style helpers ──────────────────────────────────────────────────────────────
@@ -385,6 +869,7 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 		return
 
 	var creds := ConfigFile.new()
+	creds.load(_CREDS_PATH)  # preserve other sections already on disk (e.g. [oauth] session)
 	creds.set_value("credentials", "app_id",    app_id)
 	creds.set_value("credentials", "app_secret", app_secret)
 	creds.save(_CREDS_PATH)
