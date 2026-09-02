@@ -89,6 +89,10 @@ var _create_with_template: bool = false
 var _selected_template_id: String = ""
 var _creds_fields_box: Control = null
 var _creds_header: Button = null
+var _app_name_row: Control = null   # read-only App Name — shown once an app is synced or cached
+var _app_name_edit: LineEdit = null
+var _app_name_hint: Label = null
+var _user_triggered_login: bool = false  # gates showing error_message until the user clicks Log in/Change App
 
 
 func _enter_tree() -> void:
@@ -218,8 +222,13 @@ func _build_panel() -> Control:
 	hvbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	header.add_child(hvbox)
 
-	# PNG logo — texture swapped by _update_panel_theme between dark-bg and light-bg variants
+	# PNG logo — assign the dark-bg (white text) variant right away so it is on
+	# screen the instant the dock draws; _update_panel_theme() swaps it to the
+	# light-bg variant afterwards if needed, but that swap is async (awaits a
+	# frame) and must never be the only place a texture gets assigned, or the
+	# logo can end up blank until/unless that coroutine resolves.
 	_logo_png = TextureRect.new()
+	_logo_png.texture               = _try_load_logo(_LOGO_PATH)
 	_logo_png.expand_mode           = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	_logo_png.stretch_mode          = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_logo_png.custom_minimum_size   = Vector2(0, 28)
@@ -293,19 +302,6 @@ func _build_panel() -> Control:
 	apply_default_server.call(use_default_check.button_pressed)
 	use_default_check.toggled.connect(apply_default_server)
 
-	var app_ver_lbl := Label.new()
-	app_ver_lbl.text = "App Version"
-	app_ver_lbl.add_theme_font_size_override("font_size", 11)
-	cvbox.add_child(app_ver_lbl)
-
-	var app_ver_edit := LineEdit.new()
-	app_ver_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	app_ver_edit.clear_button_enabled  = true
-	app_ver_edit.text                  = _read_setting("app_version")
-	app_ver_edit.add_theme_font_size_override("font_size", 11)
-	cvbox.add_child(app_ver_edit)
-	fields["app_version"] = app_ver_edit
-
 	cvbox.add_child(_horiz_sep())
 
 	# Collapsed by default — once the Account section above configures the app,
@@ -326,6 +322,43 @@ func _build_panel() -> Control:
 	_creds_fields_box.add_theme_constant_override("separation", 4)
 	_creds_fields_box.visible = false
 	cvbox.add_child(_creds_fields_box)
+
+	# App Name — read only. Manual App ID/Secret entry has no name to show, so
+	# this row starts hidden; _update_synced_app_name() reveals it once the App
+	# ID below matches an app synced through the brainCloud Account login flow.
+	_app_name_row = VBoxContainer.new()
+	_app_name_row.add_theme_constant_override("separation", 2)
+	_app_name_row.visible = false
+	_creds_fields_box.add_child(_app_name_row)
+
+	var app_name_lbl := Label.new()
+	app_name_lbl.text = "App Name"
+	app_name_lbl.add_theme_font_size_override("font_size", 11)
+	_app_name_row.add_child(app_name_lbl)
+
+	_app_name_edit = LineEdit.new()
+	_app_name_edit.editable              = false
+	_app_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_app_name_edit.add_theme_font_size_override("font_size", 11)
+	_app_name_row.add_child(_app_name_edit)
+
+	_app_name_hint = Label.new()
+	_app_name_hint.text = "Read only — synced from brainCloud"
+	_app_name_hint.add_theme_font_size_override("font_size", 9)
+	_app_name_row.add_child(_app_name_hint)
+
+	var app_ver_lbl := Label.new()
+	app_ver_lbl.text = "App Version"
+	app_ver_lbl.add_theme_font_size_override("font_size", 11)
+	_creds_fields_box.add_child(app_ver_lbl)
+
+	var app_ver_edit := LineEdit.new()
+	app_ver_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	app_ver_edit.clear_button_enabled  = true
+	app_ver_edit.text                  = _read_setting("app_version")
+	app_ver_edit.add_theme_font_size_override("font_size", 11)
+	_creds_fields_box.add_child(app_ver_edit)
+	fields["app_version"] = app_ver_edit
 
 	var on_creds_header_pressed := func():
 		_creds_fields_box.visible = not _creds_fields_box.visible
@@ -448,6 +481,66 @@ func _refresh_account_section() -> void:
 	else:
 		_build_login_view()
 
+	_update_synced_app_name()
+
+
+# Shows the read-only App Name row in App Credentials whenever the current App
+# ID matches an app from the login flow's list — i.e. it was synced from the
+# cloud rather than typed in by hand. Every live match is cached to disk
+# (_save_app_name) so the name still displays "offline" — logged out, or a
+# background team/app refresh failed (see _has_configured_app) — as long as
+# the App ID hasn't since changed to something the cache wasn't captured for.
+# Hidden entirely for manual entry with no cache, or an App ID that matches
+# neither a synced app nor the cache.
+func _update_synced_app_name() -> void:
+	if not is_instance_valid(_app_name_row) or _login_flow == null:
+		return
+	var current_app_id: String = (_cred_fields["app_id"] as LineEdit).text.strip_edges() \
+		if _cred_fields.has("app_id") else ""
+	if current_app_id.is_empty():
+		_app_name_row.visible = false
+		return
+
+	var live_name := ""
+	for a in _login_flow.apps:
+		if a["id"] == current_app_id:
+			live_name = a["name"]
+			break
+
+	if not live_name.is_empty():
+		_app_name_edit.text = live_name
+		_app_name_hint.text = "Read only — synced from brainCloud"
+		_app_name_row.visible = true
+		_save_app_name(current_app_id, live_name)
+		return
+
+	# No live match (logged out, or the app list just hasn't loaded yet) — fall
+	# back to the last name cached for this exact App ID rather than hiding.
+	if _read_setting("app_name_id") == current_app_id:
+		var cached_name := _read_setting("app_name")
+		if not cached_name.is_empty():
+			_app_name_edit.text = cached_name
+			_app_name_hint.text = "Read only — cached, offline"
+			_app_name_row.visible = true
+			return
+
+	_app_name_row.visible = false
+
+
+# Persisted alongside App ID/Secret in braincloud.cfg so _update_synced_app_name
+# can still show a name while offline. Keyed to the App ID it was captured for
+# so a manually-changed App ID never displays a stale cached name.
+func _save_app_name(app_id: String, name: String) -> void:
+	if app_id.is_empty() or name.is_empty():
+		return
+	if _read_setting("app_name_id") == app_id and _read_setting("app_name") == name:
+		return
+	var creds := ConfigFile.new()
+	creds.load(_CREDS_PATH)  # preserve other sections already on disk
+	creds.set_value("credentials", "app_name_id", app_id)
+	creds.set_value("credentials", "app_name",    name)
+	creds.save(_CREDS_PATH)
+
 
 func _collapse_credentials() -> void:
 	if is_instance_valid(_creds_fields_box):
@@ -456,15 +549,49 @@ func _collapse_credentials() -> void:
 		_creds_header.text = "▸ APP CREDENTIALS"
 
 
+func _expand_credentials() -> void:
+	if is_instance_valid(_creds_fields_box):
+		_creds_fields_box.visible = true
+	if is_instance_valid(_creds_header):
+		_creds_header.text = "▾ APP CREDENTIALS"
+
+
+# True once App ID + App Secret are already on disk — e.g. a session that was
+# logged in yesterday but whose access token has since expired: refresh_teams()
+# treats that as a login failure and drops back to State.LOGGED_OUT (see
+# BrainCloudLoginFlow._on_login_error), even though the saved credentials are
+# still valid and the SDK autoload keeps working fine with them.
+func _has_configured_app() -> bool:
+	return _cred_fields.has("app_id") and _cred_fields.has("app_secret") \
+		and not (_cred_fields["app_id"] as LineEdit).text.strip_edges().is_empty() \
+		and not (_cred_fields["app_secret"] as LineEdit).text.strip_edges().is_empty()
+
+
 func _build_login_view() -> void:
-	_collapse_credentials()
+	var has_app := _has_configured_app()
+
+	# A configured app keeps working with its saved credentials whether or not
+	# the brainCloud Account above is logged in — show them instead of hiding
+	# behind the collapsed section, so it's obvious nothing is actually broken.
+	if has_app:
+		_expand_credentials()
+	else:
+		_collapse_credentials()
+
 	_account_container.add_child(_section_lbl("brainCloud Account"))
 
-	var desc := Label.new()
-	desc.text          = "Go to the brainCloud portal to view more advanced configurations of your project and to find additional resources."
-	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc.add_theme_font_size_override("font_size", 11)
-	_account_container.add_child(desc)
+	if has_app:
+		var configured := Label.new()
+		configured.text          = "This project's app credentials (below) are already configured and in use. Log in only if you want to switch to a different app."
+		configured.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		configured.add_theme_font_size_override("font_size", 11)
+		_account_container.add_child(configured)
+	else:
+		var desc := Label.new()
+		desc.text          = "Go to the brainCloud portal to view more advanced configurations of your project and to find additional resources."
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc.add_theme_font_size_override("font_size", 11)
+		_account_container.add_child(desc)
 
 	var portal_link := LinkButton.new()
 	portal_link.text = "brainCloud Portal"
@@ -473,11 +600,18 @@ func _build_login_view() -> void:
 	portal_link.pressed.connect(func(): OS.shell_open(_portal_url()))
 	_account_container.add_child(portal_link)
 
-	if not _login_flow.error_message.is_empty():
+	# Suppressed until the user actually clicks Log in/Change App — an expired
+	# session's automatic background refresh_teams() (see _has_configured_app)
+	# fails silently here instead of greeting a working project with red text.
+	if _user_triggered_login and not _login_flow.error_message.is_empty():
 		_account_container.add_child(_error_lbl(_login_flow.error_message))
 
+	# "Change App" is the same login flow as "Log in with brainCloud" — logging
+	# back in lands on _build_logged_in_view()'s team/app dropdown either way.
+	# Only the label changes, so a project that's already working doesn't read
+	# as "log in or nothing here works."
 	var login_btn := Button.new()
-	login_btn.text                  = "Log in with brainCloud"
+	login_btn.text                  = "Change App" if has_app else "Log in with brainCloud"
 	login_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	login_btn.custom_minimum_size   = Vector2(0, 28)
 	_style_primary(login_btn)
@@ -742,6 +876,7 @@ func _portal_url() -> String:
 
 
 func _on_login_pressed() -> void:
+	_user_triggered_login = true
 	_login_flow.set_base_host(BrainCloudBuilderApi.base_host(_current_server_url()))
 	_login_flow.login()
 
@@ -759,6 +894,7 @@ func _on_app_selected(app_id: String, app_secret: String) -> void:
 	(_cred_fields["app_id"] as LineEdit).text     = app_id
 	(_cred_fields["app_secret"] as LineEdit).text = app_secret
 	_on_save(_cred_fields, _log_check, _status_label)
+	_update_synced_app_name()
 
 
 # ── Style helpers ──────────────────────────────────────────────────────────────
@@ -843,7 +979,7 @@ func _get_plugin_version() -> String:
 # ── Data helpers ───────────────────────────────────────────────────────────────
 
 func _read_setting(key: String) -> String:
-	if key in ["app_id", "app_secret"]:
+	if key in ["app_id", "app_secret", "app_name", "app_name_id"]:
 		var cfg := ConfigFile.new()
 		if cfg.load(_CREDS_PATH) == OK:
 			var v = str(cfg.get_value("credentials", key, ""))

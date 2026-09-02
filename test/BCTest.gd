@@ -53,7 +53,7 @@ func setup_bc(server_url: String = "") -> bool:
 		var secret_map := {app_id: secret, child_app_id: child_secret}
 		bc_wrapper.init_with_apps(secret_map, app_id, version, url)
 	else:
-		bc_wrapper.init(secret, app_id, version, url)
+		bc_wrapper.initialize(secret, app_id, version, url)
 	bc_wrapper.braincloud_client.enable_logging(true)
 
 	bc_wrapper.braincloud_client.authentication_service.clear_saved_profile_id()
