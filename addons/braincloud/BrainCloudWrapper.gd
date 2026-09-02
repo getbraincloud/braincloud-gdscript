@@ -138,18 +138,20 @@ func init() -> void:
 		return
 	var app_version: String = ProjectSettings.get_setting("braincloud/config/app_version", "1.0.0")
 	var server_url: String  = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
-	var enable_logging: bool = ProjectSettings.get_setting("braincloud/debug/enable_logging", false)
-	_client.enable_logging(enable_logging)
 	initialize(app_secret, app_id, app_version, server_url)
 
 # Initialize the brainCloud client with the passed in parameters. This version overrides
-# the credentials read from braincloud.cfg/ProjectSettings by init().
+# the credentials read from braincloud.cfg/ProjectSettings by init(). Either way, logging
+# and compression are always applied from ProjectSettings (braincloud/debug/enable_logging,
+# braincloud/config/enable_compression) right after the client initializes.
 func initialize(secret_key: String, app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
 	_last_url = url
 	_last_secret_key = secret_key
 	_last_app_id = app_id
 	_last_app_version = version
 	_client.initialize(secret_key, app_id, version, url)
+	_client.enable_logging(bool(ProjectSettings.get_setting("braincloud/debug/enable_logging", false)))
+	_client.enable_compression(bool(ProjectSettings.get_setting("braincloud/config/enable_compression", true)))
 
 func get_app_id() -> String:
 	return _last_app_id

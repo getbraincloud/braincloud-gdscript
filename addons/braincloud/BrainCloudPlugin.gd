@@ -9,6 +9,10 @@ const _MENU_ITEM     := "brainCloud"
 # Credentials are stored here — add this path to .gitignore
 const _CREDS_PATH    := "res://addons/braincloud/braincloud.cfg"
 
+# "Create using Template" is suppressed until we can confirm the list of templates
+# available. Flip back on once that's confirmed.
+const _TEMPLATES_ENABLED := false
+
 # ── Brand colours ──────────────────────────────────────────────────────────────
 const _BC_BLUE       := Color("#29a8e0")
 const _BC_DARK       := Color("#0f1923")
@@ -25,9 +29,10 @@ const _DEFAULT_SERVER_URL := "https://api.braincloudservers.com/dispatcherv2"
 
 # Only non-sensitive settings live in project.godot
 const _SETTINGS := [
-	{"name": "braincloud/config/server_url",    "type": TYPE_STRING, "default": _DEFAULT_SERVER_URL},
-	{"name": "braincloud/config/app_version",   "type": TYPE_STRING, "default": "1.0.0"},
-	{"name": "braincloud/debug/enable_logging", "type": TYPE_BOOL,   "default": false},
+	{"name": "braincloud/config/server_url",         "type": TYPE_STRING, "default": _DEFAULT_SERVER_URL},
+	{"name": "braincloud/config/app_version",        "type": TYPE_STRING, "default": "1.0.0"},
+	{"name": "braincloud/config/enable_compression", "type": TYPE_BOOL,   "default": true},
+	{"name": "braincloud/debug/enable_logging",      "type": TYPE_BOOL,   "default": false},
 ]
 
 const _LINKS := [
@@ -79,6 +84,7 @@ var _warn_label: Label       = null  # brand orange — cannot inherit from them
 var _login_flow: BrainCloudLoginFlow = null
 var _account_container: Control = null
 var _cred_fields: Dictionary = {}
+var _logout_btn: Button = null   # lives below App Credentials, hidden until logged in
 var _log_check: CheckBox = null
 var _status_label: Label = null
 var _show_create_app: bool = false
@@ -343,7 +349,7 @@ func _build_panel() -> Control:
 	_app_name_row.add_child(_app_name_edit)
 
 	_app_name_hint = Label.new()
-	_app_name_hint.text = "Read only — synced from brainCloud"
+	_app_name_hint.text = "Read only"
 	_app_name_hint.add_theme_font_size_override("font_size", 9)
 	_app_name_row.add_child(_app_name_hint)
 
@@ -439,6 +445,19 @@ func _build_panel() -> Control:
 	_warn_label.add_theme_font_size_override("font_size", 11)
 	_creds_fields_box.add_child(_warn_label)
 
+	# Below App Credentials (outside the collapsible box, so it stays visible even
+	# when that section is collapsed) — hidden until logged in, see _refresh_account_section().
+	_logout_btn = Button.new()
+	_logout_btn.text                  = "Log out"
+	_logout_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_logout_btn.custom_minimum_size   = Vector2(0, 24)
+	_logout_btn.visible               = false
+	var on_logout_pressed := func():
+		_show_create_app = false
+		_login_flow.logout()
+	_logout_btn.pressed.connect(on_logout_pressed)
+	cvbox.add_child(_logout_btn)
+
 	root.add_child(_horiz_sep())
 
 	# ── Resources ─────────────────────────────────────────────────────────
@@ -481,6 +500,9 @@ func _refresh_account_section() -> void:
 	else:
 		_build_login_view()
 
+	if is_instance_valid(_logout_btn):
+		_logout_btn.visible = _login_flow.is_logged_in()
+
 	_update_synced_app_name()
 
 
@@ -509,7 +531,7 @@ func _update_synced_app_name() -> void:
 
 	if not live_name.is_empty():
 		_app_name_edit.text = live_name
-		_app_name_hint.text = "Read only — synced from brainCloud"
+		_app_name_hint.text = "Read only"
 		_app_name_row.visible = true
 		_save_app_name(current_app_id, live_name)
 		return
@@ -715,16 +737,6 @@ func _build_logged_in_view() -> void:
 	if is_create_selected:
 		_account_container.add_child(_build_create_app_fields())
 
-	var logout_btn := Button.new()
-	logout_btn.text                  = "Log out"
-	logout_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	logout_btn.custom_minimum_size   = Vector2(0, 24)
-	var on_logout_pressed := func():
-		_show_create_app = false
-		_login_flow.logout()
-	logout_btn.pressed.connect(on_logout_pressed)
-	_account_container.add_child(logout_btn)
-
 
 func _build_create_app_fields() -> Control:
 	if _new_app_platform_state.is_empty():
@@ -748,19 +760,22 @@ func _build_create_app_fields() -> Control:
 	_new_app_name_edit.text_changed.connect(on_name_changed)
 	box.add_child(_new_app_name_edit)
 
-	var template_check := CheckBox.new()
-	template_check.text           = "Create using Template"
-	template_check.button_pressed = _create_with_template
-	template_check.add_theme_font_size_override("font_size", 11)
-	var on_template_toggled := func(pressed: bool):
-		_create_with_template = pressed
-		if pressed:
-			_login_flow.download_template_list()
-		_refresh_account_section()
-	template_check.toggled.connect(on_template_toggled)
-	box.add_child(template_check)
+	# "Create using Template" is suppressed until we can confirm the list of templates
+	# available — see _build_template_picker(). Re-enable by restoring this checkbox.
+	if _TEMPLATES_ENABLED:
+		var template_check := CheckBox.new()
+		template_check.text           = "Create using Template"
+		template_check.button_pressed = _create_with_template
+		template_check.add_theme_font_size_override("font_size", 11)
+		var on_template_toggled := func(pressed: bool):
+			_create_with_template = pressed
+			if pressed:
+				_login_flow.download_template_list()
+			_refresh_account_section()
+		template_check.toggled.connect(on_template_toggled)
+		box.add_child(template_check)
 
-	if _create_with_template:
+	if _TEMPLATES_ENABLED and _create_with_template:
 		box.add_child(_build_template_picker())
 	else:
 		box.add_child(_build_platform_checks())
@@ -894,7 +909,10 @@ func _on_app_selected(app_id: String, app_secret: String) -> void:
 	(_cred_fields["app_id"] as LineEdit).text     = app_id
 	(_cred_fields["app_secret"] as LineEdit).text = app_secret
 	_on_save(_cred_fields, _log_check, _status_label)
-	_update_synced_app_name()
+	# Rebuild so the App dropdown actually shows the newly created/selected app instead of
+	# lingering on "-- Create New App --" with no visible feedback that anything happened.
+	_show_create_app = false
+	_refresh_account_section()
 
 
 # ── Style helpers ──────────────────────────────────────────────────────────────
