@@ -520,7 +520,7 @@ func _update_synced_app_name() -> void:
 		var cached_name := _read_setting("app_name")
 		if not cached_name.is_empty():
 			_app_name_edit.text = cached_name
-			_app_name_hint.text = "Read only — cached, offline"
+			_app_name_hint.text = "Read only"
 			_app_name_row.visible = true
 			return
 
