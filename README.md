@@ -186,7 +186,7 @@ If you prefer not to use the plugin panel you can initialise the SDK in code ins
 
 ```gdscript
 func _ready() -> void:
-    brainCloud.init("YOUR_APP_SECRET", "YOUR_APP_ID", "1.0.0")
+    brainCloud.initialize("YOUR_APP_SECRET", "YOUR_APP_ID", "1.0.0")
 ```
 
 ---

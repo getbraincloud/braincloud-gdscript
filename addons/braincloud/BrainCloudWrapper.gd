@@ -114,12 +114,16 @@ var relay_service: BrainCloudRelay:
 func _ready() -> void:
 	_client = BrainCloudClient.new()
 	add_child(_client)
-	_auto_init_from_project_settings()
 
+func is_initialized() -> bool:
+	return _client.is_initialized()
 
-func _auto_init_from_project_settings() -> void:
-	# Credentials come from the gitignored braincloud.cfg, with a fallback to
-	# project.godot for projects that haven't migrated yet.
+# Initializes brainCloud using the credentials saved by the editor plugin's login flow
+# (the gitignored braincloud.cfg), falling back to project.godot for projects that
+# haven't migrated yet. Mirrors the C#/Unity SDK's parameterless Init(), which reads its
+# Unity Settings window plugin data. Must be called explicitly by the developer — use
+# initialize(...) instead to pass explicit parameters.
+func init() -> void:
 	var app_id     := ""
 	var app_secret := ""
 	var creds := ConfigFile.new()
@@ -134,19 +138,26 @@ func _auto_init_from_project_settings() -> void:
 		return
 	var app_version: String = ProjectSettings.get_setting("braincloud/config/app_version", "1.0.0")
 	var server_url: String  = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
-	var enable_logging: bool = ProjectSettings.get_setting("braincloud/debug/enable_logging", false)
-	_client.enable_logging(enable_logging)
-	init(app_secret, app_id, app_version, server_url)
+	initialize(app_secret, app_id, app_version, server_url)
 
-func is_initialized() -> bool:
-	return _client.is_initialized()
-
-func init(secret_key: String, app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
+# Initialize the brainCloud client with the passed in parameters. This version overrides
+# the credentials read from braincloud.cfg/ProjectSettings by init(). Either way, logging
+# and compression are always applied from ProjectSettings (braincloud/debug/enable_logging,
+# braincloud/config/enable_compression) right after the client initializes.
+func initialize(secret_key: String, app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
 	_last_url = url
 	_last_secret_key = secret_key
 	_last_app_id = app_id
 	_last_app_version = version
 	_client.initialize(secret_key, app_id, version, url)
+	_client.enable_logging(bool(ProjectSettings.get_setting("braincloud/debug/enable_logging", false)))
+	_client.enable_compression(bool(ProjectSettings.get_setting("braincloud/config/enable_compression", true)))
+
+func get_app_id() -> String:
+	return _last_app_id
+
+func get_app_version() -> String:
+	return _last_app_version
 
 func init_with_apps(app_id_secret_map: Dictionary, default_app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
 	_last_url = url

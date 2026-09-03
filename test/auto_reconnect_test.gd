@@ -52,7 +52,7 @@ func test_auto_reconnect_enabled_with_callback(bc: BCTest) -> void:
 	other.name = "BCWrapperOther"
 	other.wrapper_name = "GDScriptTestOther"
 	bc.add_child(other)
-	other.init(secret, app_id, version, url)
+	other.initialize(secret, app_id, version, url)
 	other.braincloud_client.enable_logging(true)
 	other.braincloud_client.authentication_service.clear_saved_profile_id()
 	var other_auth := await other.authenticate_universal(bc.user_b.name, bc.user_b.password, true)
