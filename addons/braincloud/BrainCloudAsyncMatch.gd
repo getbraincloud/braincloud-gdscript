@@ -31,14 +31,15 @@ func create_match(json_opponents: Array, push_message: Dictionary) -> Dictionary
 ## @param push_message Optional push notification message to send to the other party
 ## @param next_player Optionally force the next player to be a specific player
 ## @param json_summary Optional summary of the game when listing their games
-func create_match_with_initial_turn(json_opponents: Array, json_match_state: Dictionary, push_message: Dictionary, next_player: String, json_summary: Dictionary) -> Dictionary:
+func create_match_with_initial_turn(json_opponents: Array, json_match_state: Dictionary, push_message: String, next_player: String, json_summary: Dictionary) -> Dictionary:
 	var data := {
 		OperationParam.ASYNC_MATCH_SERVICE_OPPONENTS: json_opponents,
 		OperationParam.ASYNC_MATCH_SERVICE_TURN_DATA: json_match_state,
-		OperationParam.ASYNC_MATCH_SERVICE_PUSH_MESSAGE: push_message,
 		"nextPlayer": next_player,
 		OperationParam.ASYNC_MATCH_SERVICE_SUMMARY: json_summary
 	}
+	if not push_message.is_empty():
+		data[OperationParam.ASYNC_MATCH_SERVICE_PUSH_MESSAGE] = push_message
 	return await _send(ServiceOperation.CREATE, data)
 
 ## Submits a turn for the given match.
@@ -54,17 +55,18 @@ func create_match_with_initial_turn(json_opponents: Array, json_match_state: Dic
 ## @param next_player Optionally force the next player to be a specific player
 ## @param json_summary Optional summary that other players see when listing their games
 ## @param json_statistics Optional statistics blob provided by the caller
-func submit_turn(owner_id: String, match_id: String, version: int, json_match_state: Dictionary, push_message: Dictionary, next_player: String, json_summary: Dictionary, json_statistics: Dictionary) -> Dictionary:
+func submit_turn(owner_id: String, match_id: String, version: int, json_match_state: Dictionary, push_message: String, next_player: String, json_summary: Dictionary, json_statistics: Dictionary) -> Dictionary:
 	var data := {
 		OperationParam.ASYNC_MATCH_SERVICE_OWNER_ID: owner_id,
 		OperationParam.ASYNC_MATCH_SERVICE_MATCH_ID: match_id,
 		OperationParam.ASYNC_MATCH_SERVICE_CURRENT_VERSION: version,
 		OperationParam.ASYNC_MATCH_SERVICE_TURN_DATA: json_match_state,
-		OperationParam.ASYNC_MATCH_SERVICE_PUSH_MESSAGE: push_message,
 		"nextPlayer": next_player,
 		OperationParam.ASYNC_MATCH_SERVICE_SUMMARY: json_summary,
 		"statistics": json_statistics
 	}
+	if not push_message.is_empty():
+		data[OperationParam.ASYNC_MATCH_SERVICE_PUSH_MESSAGE] = push_message
 	return await _send(ServiceOperation.TURN, data)
 
 ## Allows the current player to update match summary without completing their turn.
@@ -167,7 +169,7 @@ func delete_match(owner_id: String, match_id: String) -> Dictionary:
 		OperationParam.ASYNC_MATCH_SERVICE_OWNER_ID: owner_id,
 		OperationParam.ASYNC_MATCH_SERVICE_MATCH_ID: match_id
 	}
-	return await _send(ServiceOperation.DELETE, data)
+	return await _send(ServiceOperation.DELETE_MATCH, data)
 
 ## Marks the given match as abandoned. This call can send a notification message.
 ##
@@ -178,13 +180,14 @@ func delete_match(owner_id: String, match_id: String) -> Dictionary:
 ## @param match_id Match identifier
 ## @param push_message Optional push notification message to send to the other party
 ## @param summary Summary data to associate with the abandoned match
-func abandon_match_with_summary_data(owner_id: String, match_id: String, push_message: Dictionary, summary: Dictionary) -> Dictionary:
+func abandon_match_with_summary_data(owner_id: String, match_id: String, push_message: String, summary: Dictionary) -> Dictionary:
 	var data := {
 		OperationParam.ASYNC_MATCH_SERVICE_OWNER_ID: owner_id,
 		OperationParam.ASYNC_MATCH_SERVICE_MATCH_ID: match_id,
-		OperationParam.ASYNC_MATCH_SERVICE_PUSH_MESSAGE: push_message,
 		OperationParam.ASYNC_MATCH_SERVICE_SUMMARY: summary
 	}
+	if not push_message.is_empty():
+		data[OperationParam.ASYNC_MATCH_SERVICE_PUSH_MESSAGE] = push_message
 	return await _send(ServiceOperation.ABANDON_MATCH_WITH_SUMMARY_DATA, data)
 
 ## Marks the given match as complete. This call can send a notification message.
@@ -196,13 +199,14 @@ func abandon_match_with_summary_data(owner_id: String, match_id: String, push_me
 ## @param match_id Match identifier
 ## @param push_message Optional push notification message to send to the other party
 ## @param summary Summary data to associate with the completed match
-func complete_match_with_summary_data(owner_id: String, match_id: String, push_message: Dictionary, summary: Dictionary) -> Dictionary:
+func complete_match_with_summary_data(owner_id: String, match_id: String, push_message: String, summary: Dictionary) -> Dictionary:
 	var data := {
 		OperationParam.ASYNC_MATCH_SERVICE_OWNER_ID: owner_id,
 		OperationParam.ASYNC_MATCH_SERVICE_MATCH_ID: match_id,
-		OperationParam.ASYNC_MATCH_SERVICE_PUSH_MESSAGE: push_message,
 		OperationParam.ASYNC_MATCH_SERVICE_SUMMARY: summary
 	}
+	if not push_message.is_empty():
+		data[OperationParam.ASYNC_MATCH_SERVICE_PUSH_MESSAGE] = push_message
 	return await _send(ServiceOperation.COMPLETE_MATCH_WITH_SUMMARY_DATA, data)
 
 func _send(operation: String, data: Dictionary) -> Dictionary:

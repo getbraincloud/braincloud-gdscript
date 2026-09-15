@@ -40,7 +40,7 @@ func query_global_stats_by_category(category: String) -> Dictionary:
 ##
 ## @param json_data The statistics to increment/decrement as a Dictionary
 func increment_global_game_stat(json_data: Dictionary) -> Dictionary:
-	return await _send(ServiceOperation.UPDATE, {OperationParam.GLOBAL_STATISTICS_SERVICE_STATISTICS: json_data})
+	return await _send(ServiceOperation.UPDATE_INCREMENT, {OperationParam.GLOBAL_STATISTICS_SERVICE_STATISTICS: json_data})
 
 ## Atomically increment (or decrement) global statistics. Alias for increment_global_game_stat.
 ##

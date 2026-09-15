@@ -95,11 +95,7 @@ func test_post_score_to_dynamic_leaderboard(bc: BCTest) -> void:
 	var response := await bc.bc_wrapper.social_leaderboard_service.post_score_to_dynamic_leaderboard(
 		"testDynamicJs", 1000, {"extra": 123}, "HIGH_VALUE", "WEEKLY", tomorrow_ms, 2
 	)
-	var status: int = response.get("status", -1)
-	bc.expect_true(
-		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
-		"Expected 200 or 400, got %d" % status
-	)
+	bc.expect_status_ok(response)
 
 func test_post_score_to_dynamic_leaderboard_utc(bc: BCTest) -> void:
 	bc.begin_test("test_post_score_to_dynamic_leaderboard_utc")
@@ -107,11 +103,7 @@ func test_post_score_to_dynamic_leaderboard_utc(bc: BCTest) -> void:
 	var response := await bc.bc_wrapper.social_leaderboard_service.post_score_to_dynamic_leaderboard_utc(
 		"testDynamicJs", 1000, {"extra": 123}, "HIGH_VALUE", "DAILY", tomorrow_ms, 3
 	)
-	var status: int = response.get("status", -1)
-	bc.expect_true(
-		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
-		"Expected 200 or 400, got %d" % status
-	)
+	bc.expect_status_ok(response)
 
 func test_post_score_to_leaderboard_using_config(bc: BCTest) -> void:
 	bc.begin_test("test_post_score_to_leaderboard_using_config")

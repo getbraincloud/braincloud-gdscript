@@ -124,21 +124,10 @@ func is_initialized() -> bool:
 # Unity Settings window plugin data. Must be called explicitly by the developer — use
 # initialize(...) instead to pass explicit parameters.
 func init() -> void:
-	var app_id     := ""
-	var app_secret := ""
-	var creds := ConfigFile.new()
-	if creds.load(_CREDS_PATH) == OK:
-		app_id     = str(creds.get_value("credentials", "app_id",     ""))
-		app_secret = str(creds.get_value("credentials", "app_secret", ""))
-	if app_id.is_empty():
-		app_id = ProjectSettings.get_setting("braincloud/config/app_id", "")
-	if app_secret.is_empty():
-		app_secret = ProjectSettings.get_setting("braincloud/config/app_secret", "")
-	if app_id.is_empty() or app_secret.is_empty():
-		return
-	var app_version: String = ProjectSettings.get_setting("braincloud/config/app_version", "1.0.0")
-	var server_url: String  = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
-	initialize(app_secret, app_id, app_version, server_url)
+	BrainCloudNative.new().resolve_config(_CREDS_PATH, func(app_id: String, app_secret: String):
+		var app_version: String = ProjectSettings.get_setting("braincloud/config/app_version", "1.0.0")
+		var server_url: String  = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
+		initialize(app_secret, app_id, app_version, server_url))
 
 # Initialize the brainCloud client with the passed in parameters. This version overrides
 # the credentials read from braincloud.cfg/ProjectSettings by init(). Either way, logging

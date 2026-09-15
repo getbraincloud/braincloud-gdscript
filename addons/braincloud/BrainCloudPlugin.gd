@@ -997,7 +997,9 @@ func _get_plugin_version() -> String:
 # ── Data helpers ───────────────────────────────────────────────────────────────
 
 func _read_setting(key: String) -> String:
-	if key in ["app_id", "app_secret", "app_name", "app_name_id"]:
+	if key == "app_secret":
+		return _read_stored_secret()
+	if key in ["app_id", "app_name", "app_name_id"]:
 		var cfg := ConfigFile.new()
 		if cfg.load(_CREDS_PATH) == OK:
 			var v = str(cfg.get_value("credentials", key, ""))
@@ -1011,6 +1013,11 @@ func _read_setting(key: String) -> String:
 	return ""
 
 
+func _read_stored_secret() -> String:
+	var resolved: Dictionary = BrainCloudNative.new().resolve_config_sync(_CREDS_PATH)
+	return str(resolved.get("secret", ""))
+
+
 func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 	var app_id     := (fields["app_id"]      as LineEdit).text.strip_edges()
 	var app_secret := (fields["app_secret"]  as LineEdit).text.strip_edges()
@@ -1022,11 +1029,10 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 		status.text = "App ID, Secret and URL are required."
 		return
 
-	var creds := ConfigFile.new()
-	creds.load(_CREDS_PATH)  # preserve other sections already on disk (e.g. [oauth] session)
-	creds.set_value("credentials", "app_id",    app_id)
-	creds.set_value("credentials", "app_secret", app_secret)
-	creds.save(_CREDS_PATH)
+	if not BrainCloudNative.new().prepare_config(_CREDS_PATH, app_id, app_secret):
+		status.add_theme_color_override("font_color", Color("#dd5555"))
+		status.text = "Failed to save credentials."
+		return
 	_ensure_gitignore()
 
 	ProjectSettings.set_setting("braincloud/config/server_url",    server_url)
