@@ -550,8 +550,9 @@ func _update_synced_app_name() -> void:
 
 	# No live match (logged out, or the app list just hasn't loaded yet) — fall
 	# back to the last name cached for this exact App ID rather than hiding.
-	if _read_setting("app_name_id") == current_app_id:
-		var cached_name := _read_setting("app_name")
+	var cached: Dictionary = BrainCloudNative.new().resolve_app_name(_CREDS_PATH)
+	if str(cached.get("app_id", "")) == current_app_id:
+		var cached_name := str(cached.get("app_name", ""))
 		if not cached_name.is_empty():
 			_app_name_edit.text = cached_name
 			_app_name_hint.text = "Read only"
@@ -561,19 +562,16 @@ func _update_synced_app_name() -> void:
 	_app_name_row.visible = false
 
 
-# Persisted alongside App ID/Secret in braincloud.cfg so _update_synced_app_name
-# can still show a name while offline. Keyed to the App ID it was captured for
-# so a manually-changed App ID never displays a stale cached name.
+# Persisted alongside App ID/Secret in braincloud.cfg (encoded, like app_id/app_secret)
+# so _update_synced_app_name can still show a name while offline. Keyed to the App ID
+# it was captured for so a manually-changed App ID never displays a stale cached name.
 func _save_app_name(app_id: String, name: String) -> void:
 	if app_id.is_empty() or name.is_empty():
 		return
-	if _read_setting("app_name_id") == app_id and _read_setting("app_name") == name:
+	var cached: Dictionary = BrainCloudNative.new().resolve_app_name(_CREDS_PATH)
+	if str(cached.get("app_id", "")) == app_id and str(cached.get("app_name", "")) == name:
 		return
-	var creds := ConfigFile.new()
-	creds.load(_CREDS_PATH)  # preserve other sections already on disk
-	creds.set_value("credentials", "app_name_id", app_id)
-	creds.set_value("credentials", "app_name",    name)
-	creds.save(_CREDS_PATH)
+	BrainCloudNative.new().save_app_name(_CREDS_PATH, app_id, name)
 
 
 func _collapse_credentials() -> void:
@@ -1011,13 +1009,9 @@ func _get_plugin_version() -> String:
 func _read_setting(key: String) -> String:
 	if key == "app_secret":
 		return _read_stored_secret()
-	if key in ["app_id", "app_name", "app_name_id"]:
-		var cfg := ConfigFile.new()
-		if cfg.load(_CREDS_PATH) == OK:
-			var v = str(cfg.get_value("credentials", key, ""))
-			if not v.is_empty():
-				return v
-		return ""
+	if key in ["app_id", "app_name"]:
+		var resolved: Dictionary = BrainCloudNative.new().resolve_app_name(_CREDS_PATH)
+		return str(resolved.get(key, ""))
 	var full_key := "braincloud/config/" + key
 	if ProjectSettings.has_setting(full_key):
 		var v = ProjectSettings.get_setting(full_key)
