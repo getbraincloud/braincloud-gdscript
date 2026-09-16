@@ -43,20 +43,12 @@ func test_read_achieved_achievements(bc: BCTest) -> void:
 func test_read_milestones_by_category(bc: BCTest) -> void:
 	bc.begin_test("test_read_milestones_by_category")
 	var response := await bc.bc_wrapper.gamification_service.read_milestones_by_category("general", true)
-	var status: int = response.get("status", -1)
-	bc.expect_true(
-		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
-		"Expected 200 or 400, got %d" % status
-	)
+	bc.expect_status_ok(response)
 
 func test_award_achievements(bc: BCTest) -> void:
 	bc.begin_test("test_award_achievements")
 	var response := await bc.bc_wrapper.gamification_service.award_achievements(["testAchievement01"])
-	var status: int = response.get("status", -1)
-	bc.expect_true(
-		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
-		"Expected 200 or 400, got %d" % status
-	)
+	bc.expect_status_ok(response)
 
 func test_read_xp_levels(bc: BCTest) -> void:
 	bc.begin_test("test_read_xp_levels")
@@ -79,20 +71,12 @@ func test_read_in_progress_quests(bc: BCTest) -> void:
 func test_read_quests_by_status(bc: BCTest) -> void:
 	bc.begin_test("test_read_quests_by_status")
 	var response := await bc.bc_wrapper.gamification_service.read_quests_by_status("Incomplete", true)
-	var status: int = response.get("status", -1)
-	bc.expect_true(
-		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
-		"Expected 200 or 400, got %d" % status
-	)
+	bc.expect_status_ok(response)
 
 func test_read_quests_by_category(bc: BCTest) -> void:
 	bc.begin_test("test_read_quests_by_category")
 	var response := await bc.bc_wrapper.gamification_service.read_quests_by_category("general", true)
-	var status: int = response.get("status", -1)
-	bc.expect_true(
-		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
-		"Expected 200 or 400, got %d" % status
-	)
+	bc.expect_status_ok(response)
 
 func test_read_quests_with_status(bc: BCTest) -> void:
 	bc.begin_test("test_read_quests_with_status")
@@ -103,8 +87,4 @@ func test_read_quests_with_status(bc: BCTest) -> void:
 func test_reset_milestones(bc: BCTest) -> void:
 	bc.begin_test("test_reset_milestones")
 	var response := await bc.bc_wrapper.gamification_service.reset_milestones([])
-	var status: int = response.get("status", -1)
-	bc.expect_true(
-		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
-		"Expected 200 or 400, got %d" % status
-	)
+	bc.expect_status_ok(response)

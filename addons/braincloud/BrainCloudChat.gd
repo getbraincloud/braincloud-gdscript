@@ -92,24 +92,6 @@ func get_channel_info(channel_id: String) -> Dictionary:
 	}
 	return await _send(ServiceOperation.GET_CHANNEL_INFO, data)
 
-## Gets a list of messages from history of the given channel.
-##
-## Service Name - Chat[br]
-## Service Operation - GetChatHistory
-##
-## @param channel_id The id of the channel to get history from
-## @param date_from Start date filter in UTC milliseconds
-## @param date_to End date filter in UTC milliseconds
-## @param max_return Maximum number of messages to return
-func get_chat_history(channel_id: String, date_from: int, date_to: int, max_return: int) -> Dictionary:
-	var data := {
-		OperationParam.CHAT_CHANNEL_ID: channel_id,
-		"dateFrom": date_from,
-		"dateTo": date_to,
-		OperationParam.CHAT_MAX_RETURN: max_return
-	}
-	return await _send(ServiceOperation.GET_CHAT_HISTORY, data)
-
 ## Gets a list of recent messages from history of the given channel.
 ##
 ## Service Name - Chat[br]

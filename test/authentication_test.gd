@@ -151,6 +151,7 @@ func test_reset_email_password_advanced_with_expiry(bc: BCTest) -> void:
 		"categories": ["category1", "category2"]
 	}
 	var response := await bc.bc_wrapper.authentication_service.reset_email_password_advanced_with_expiry(email, service_params, 1)
+	# Server returns 400 for invalid fromAddress config (this test app has no verified sender configured)
 	var status: int = response.get("status", -1)
 	bc.expect_true(
 		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
@@ -172,6 +173,7 @@ func test_reset_universal_id_password(bc: BCTest) -> void:
 func test_reset_universal_id_password_with_expiry(bc: BCTest) -> void:
 	bc.begin_test("test_reset_universal_id_password_with_expiry")
 	var response := await bc.bc_wrapper.authentication_service.reset_universal_id_password_with_expiry(bc.user_a.name, 1)
+	# UserA has no email attached — 400/409 are valid outcomes depending on email state
 	var status: int = response.get("status", -1)
 	bc.expect_true(
 		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST or status == StatusCodes.CONFLICT,
@@ -186,6 +188,7 @@ func test_reset_universal_id_password_advanced(bc: BCTest) -> void:
 		"categories": ["category1", "category2"]
 	}
 	var response := await bc.bc_wrapper.authentication_service.reset_universal_id_password_advanced(bc.user_a.name, service_params)
+	# UserA has no email attached — 400/409 are valid outcomes depending on email state
 	var status: int = response.get("status", -1)
 	bc.expect_true(
 		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST or status == StatusCodes.CONFLICT,
@@ -200,6 +203,7 @@ func test_reset_universal_id_password_advanced_with_expiry(bc: BCTest) -> void:
 		"categories": ["category1", "category2"]
 	}
 	var response := await bc.bc_wrapper.authentication_service.reset_universal_id_password_advanced_with_expiry(bc.user_a.name, service_params, 1)
+	# UserA has no email attached — 400/409 are valid outcomes depending on email state
 	var status: int = response.get("status", -1)
 	bc.expect_true(
 		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST or status == StatusCodes.CONFLICT,

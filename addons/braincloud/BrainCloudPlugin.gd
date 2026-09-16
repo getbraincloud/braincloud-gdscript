@@ -79,6 +79,7 @@ var _panel_control: Control = null
 # Nodes that need to swap when the editor theme changes
 var _logo_png:   TextureRect = null  # swaps between dark-bg and light-bg variant
 var _warn_label: Label       = null  # brand orange — cannot inherit from theme
+var _stale_secret_label: Label = null  # brand orange — shown when app_id is set but the saved secret can't be read
 
 # brainCloud account (OAuth + Builder API) login/team/app flow
 var _login_flow: BrainCloudLoginFlow = null
@@ -201,6 +202,9 @@ func _update_panel_theme() -> void:
 	# Warning colour is brand orange — cannot be left to the theme
 	if is_instance_valid(_warn_label):
 		_warn_label.add_theme_color_override("font_color",
+			_BC_WARN_LIGHT if _is_light else _BC_WARN_DARK)
+	if is_instance_valid(_stale_secret_label):
+		_stale_secret_label.add_theme_color_override("font_color",
 			_BC_WARN_LIGHT if _is_light else _BC_WARN_DARK)
 
 
@@ -444,6 +448,14 @@ func _build_panel() -> Control:
 	_warn_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_warn_label.add_theme_font_size_override("font_size", 11)
 	_creds_fields_box.add_child(_warn_label)
+
+	_stale_secret_label = Label.new()
+	_stale_secret_label.text          = ("⚠  Saved app secret is in an outdated format and can't be read. " +
+		"Log in above and reselect this app to update it.")
+	_stale_secret_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_stale_secret_label.add_theme_font_size_override("font_size", 11)
+	_creds_fields_box.add_child(_stale_secret_label)
+	_update_stale_secret_warning()
 
 	# Below App Credentials (outside the collapsible box, so it stays visible even
 	# when that section is collapsed) — hidden until logged in, see _refresh_account_section().
@@ -1042,6 +1054,7 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 
 	status.add_theme_color_override("font_color", Color("#44bb66"))
 	status.text = "✓  Saved"
+	_update_stale_secret_warning()
 
 
 func _ensure_gitignore() -> void:
@@ -1064,3 +1077,16 @@ func _ensure_gitignore() -> void:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f:
 		f.store_string(content)
+
+
+# An app_id with no readable secret looks configured but can't authenticate -- most
+# often because it was saved before this addon's current encoding scheme (that path
+# is a clean break, not an auto-migration; see BrainCloudNative.resolve_config).
+# Surface that explicitly instead of leaving the App Secret field blank with no
+# explanation of why a previously-working project stopped authenticating.
+func _update_stale_secret_warning() -> void:
+	if not is_instance_valid(_stale_secret_label):
+		return
+	var app_id     := (_cred_fields["app_id"]     as LineEdit).text.strip_edges()
+	var app_secret := (_cred_fields["app_secret"] as LineEdit).text.strip_edges()
+	_stale_secret_label.visible = not app_id.is_empty() and app_secret.is_empty()
