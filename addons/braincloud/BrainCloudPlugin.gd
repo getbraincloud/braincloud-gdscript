@@ -114,7 +114,7 @@ func _enter_tree() -> void:
 	get_editor_interface().get_editor_settings().settings_changed.connect(_update_panel_theme)
 
 	_login_flow = BrainCloudLoginFlow.new()
-	_login_flow.configure(_CREDS_PATH, _panel_control)
+	_login_flow.configure(_panel_control)
 	_login_flow.state_changed.connect(_refresh_account_section)
 	_login_flow.app_selected.connect(_on_app_selected)
 	_refresh_account_section()
