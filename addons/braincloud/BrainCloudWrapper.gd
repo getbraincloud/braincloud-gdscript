@@ -19,8 +19,10 @@ var always_allow_profile_switch: bool:
 
 var _last_url: String = ""
 var _last_secret_key: String = ""
+var _last_sign_profile: Callable = Callable()
 var _last_app_id: String = ""
 var _last_app_version: String = ""
+var _native_secure: BrainCloudNative = null # kept alive so its sign() stays callable
 var wrapper_name: String = ""
 
 # Expose services through wrapper
@@ -124,10 +126,11 @@ func is_initialized() -> bool:
 # Unity Settings window plugin data. Must be called explicitly by the developer — use
 # initialize(...) instead to pass explicit parameters.
 func init() -> void:
-	BrainCloudNative.new().resolve_config(_CREDS_PATH, func(app_id: String, app_secret: String):
+	_native_secure = BrainCloudNative.new()
+	_native_secure.resolve_config(_CREDS_PATH, func(app_id: String, sign_profile: Callable):
 		var app_version: String = ProjectSettings.get_setting("braincloud/config/app_version", "1.0.0")
 		var server_url: String  = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
-		initialize(app_secret, app_id, app_version, server_url))
+		initialize_with_profile(sign_profile, app_id, app_version, server_url))
 
 # Initialize the brainCloud client with the passed in parameters. This version overrides
 # the credentials read from braincloud.cfg/ProjectSettings by init(). Either way, logging
@@ -136,9 +139,22 @@ func init() -> void:
 func initialize(secret_key: String, app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
 	_last_url = url
 	_last_secret_key = secret_key
+	_last_sign_profile = Callable()
 	_last_app_id = app_id
 	_last_app_version = version
 	_client.initialize(secret_key, app_id, version, url)
+	_client.enable_logging(bool(ProjectSettings.get_setting("braincloud/debug/enable_logging", false)))
+	_client.enable_compression(bool(ProjectSettings.get_setting("braincloud/config/enable_compression", true)))
+
+# Initialize with a signing profile instead of a plaintext secret -- see
+# BrainCloudNative.resolve_config's second callback argument.
+func initialize_with_profile(sign_profile: Callable, app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
+	_last_url = url
+	_last_secret_key = ""
+	_last_sign_profile = sign_profile
+	_last_app_id = app_id
+	_last_app_version = version
+	_client.initialize_with_profile(sign_profile, app_id, version, url)
 	_client.enable_logging(bool(ProjectSettings.get_setting("braincloud/debug/enable_logging", false)))
 	_client.enable_compression(bool(ProjectSettings.get_setting("braincloud/config/enable_compression", true)))
 
@@ -290,7 +306,11 @@ func logout(forget_user: bool = false) -> Dictionary:
 	return response
 
 func reset_to_default_app() -> void:
-	if not _last_app_id.is_empty():
+	if _last_app_id.is_empty():
+		return
+	if _last_sign_profile.is_valid():
+		_client.initialize_with_profile(_last_sign_profile, _last_app_id, _last_app_version, _last_url)
+	else:
 		_client.initialize(_last_secret_key, _last_app_id, _last_app_version, _last_url)
 
 func _on_authenticated(response: Dictionary) -> void:

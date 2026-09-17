@@ -130,6 +130,16 @@ func initialize(secret_key: String, app_id: String, app_version: String, server_
 	_comms.initialize(server_url, app_id, secret_key)
 	_initialized = true
 
+func initialize_with_profile(sign_profile: Callable, app_id: String, app_version: String, server_url: String = DEFAULT_SERVER_URL) -> void:
+	if server_url.length() == 0 or not sign_profile.is_valid() or app_id.length() == 0 or app_version.length() == 0:
+		push_error("BrainCloud initialize error: serverURL, signProfile, appId, or appVersion was empty/invalid")
+		return
+	_app_version = app_version
+	_language_code = OS.get_locale_language()
+	_country_code = OS.get_locale().split("_")[-1] if "_" in OS.get_locale() else "US"
+	_comms.initialize_with_profile(server_url, app_id, sign_profile)
+	_initialized = true
+
 func initialize_with_apps(default_app_id: String, app_id_secret_map: Dictionary, app_version: String, server_url: String = DEFAULT_SERVER_URL) -> void:
 	var error := _initialize_helper(server_url, app_id_secret_map.get(default_app_id, ""), default_app_id, app_version)
 	if error.length() > 0:
