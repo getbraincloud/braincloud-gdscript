@@ -2,6 +2,10 @@
 extends RefCounted
 
 const _ROOM_READY_TIMEOUT := 30.0
+# How long to keep waiting for ROOM_READY once ROOM_ASSIGNED has arrived, before
+# falling back to ROOM_ASSIGNED. Bounds the cost for lobby types that never emit
+# ROOM_READY without reintroducing the connect race for those that do.
+const _ROOM_READY_GRACE   := 5.0
 # Same lobby type used by the C++ and Dart relay unit tests against app 20001.
 # Has everyReadyMinNum=1 so a single ready player immediately triggers ROOM_READY.
 const _RELAY_LOBBY_TYPE   := "READY_START_V2"
@@ -102,7 +106,8 @@ func test_relay_find_lobby_and_room_ready(bc: BCTest) -> void:
 		bc.expect_true(false, "skipping — RTT not enabled (see test_relay_enable_rtt)")
 		return
 
-	var room_ready := [{}]
+	var room_ready    := [{}]
+	var room_assigned := [{}]
 	var all_ops:    Array[String] = []
 
 	bc.bc_wrapper.rtt_service.register_rtt_lobby_callback(func(msg: Dictionary) -> void:
@@ -110,9 +115,20 @@ func test_relay_find_lobby_and_room_ready(bc: BCTest) -> void:
 		if not all_ops.has(op):
 			all_ops.append(op)
 			print("[relay_test] RTT lobby op: %s" % op)
-		if op == "ROOM_READY" or op == "ROOM_ASSIGNED":
+		# ROOM_ASSIGNED and ROOM_READY are NOT interchangeable. ROOM_ASSIGNED means a
+		# relay server has been allocated; it is not necessarily listening yet.
+		# ROOM_READY means it will accept connections. Treating the first arrival as
+		# "ready" raced the server's startup: relay_connect either timed out with
+		# nothing listening, or was reset mid-handshake as the server came up. That
+		# passed when relay_test ran alone and failed in a full suite run, purely on
+		# timing. Keep ROOM_ASSIGNED only as a fallback for lobby types that never
+		# emit ROOM_READY.
+		if op == "ROOM_READY":
 			if room_ready[0].is_empty():
 				room_ready[0] = msg.get("data", {})
+		elif op == "ROOM_ASSIGNED":
+			if room_assigned[0].is_empty():
+				room_assigned[0] = msg.get("data", {})
 	)
 
 	var algo := {"strategy": "ranged-absolute", "alignment": "center", "ranges": [1000]}
@@ -129,12 +145,21 @@ func test_relay_find_lobby_and_room_ready(bc: BCTest) -> void:
 	var timed_out := [false]
 	var timer := bc.get_tree().create_timer(_ROOM_READY_TIMEOUT)
 	timer.timeout.connect(func(): timed_out[0] = true)
+
+	# Wait for ROOM_READY. If only ROOM_ASSIGNED ever arrives, fall back to it after a
+	# short grace window rather than burning the whole 30s timeout — this lobby type is
+	# configured with everyReadyMinNum=1 and should emit ROOM_READY promptly.
+	var assigned_at := -1.0
 	while room_ready[0].is_empty() and not timed_out[0]:
+		if assigned_at < 0.0 and not room_assigned[0].is_empty():
+			assigned_at = Time.get_ticks_msec() / 1000.0
+		if assigned_at >= 0.0 and (Time.get_ticks_msec() / 1000.0) - assigned_at >= _ROOM_READY_GRACE:
+			break
 		await bc.get_tree().process_frame
 
 	bc.bc_wrapper.rtt_service.deregister_rtt_lobby_callback()
 
-	if timed_out[0]:
+	if room_ready[0].is_empty() and room_assigned[0].is_empty():
 		bc.expect_true(false,
 			"timed out waiting for ROOM_ASSIGNED/ROOM_READY after %.0fs (ops seen: %s) — check that '%s' has a relay server with everyReadyMinNum=1" % [_ROOM_READY_TIMEOUT, str(all_ops), _relay_lobby_type])
 		if not _lobby_id.is_empty():
@@ -142,9 +167,14 @@ func test_relay_find_lobby_and_room_ready(bc: BCTest) -> void:
 			_lobby_id = ""
 		return
 
-	_room_data = room_ready[0]
-	bc.expect_true(not _room_data.is_empty(), "ROOM_READY data should not be empty")
-	bc.expect_true(_room_data.has("connectData"), "ROOM_READY data should contain connectData")
+	if not room_ready[0].is_empty():
+		_room_data = room_ready[0]
+	else:
+		print("[relay_test] WARNING: no ROOM_READY within %.0fs of ROOM_ASSIGNED — connecting on ROOM_ASSIGNED, which can race the relay server's startup" % _ROOM_READY_GRACE)
+		_room_data = room_assigned[0]
+
+	bc.expect_true(not _room_data.is_empty(), "room data should not be empty")
+	bc.expect_true(_room_data.has("connectData"), "room data should contain connectData")
 
 func test_relay_connect_ws(bc: BCTest) -> void:
 	bc.begin_test("relay_connect_ws")
