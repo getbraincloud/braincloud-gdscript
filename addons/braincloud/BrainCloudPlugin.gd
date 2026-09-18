@@ -1041,6 +1041,11 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 		return
 	_ensure_gitignore()
 
+	var web_settings := BrainCloudWebConfig.encode(app_secret)
+	ProjectSettings.set_setting("braincloud/config/app_id.web", app_id)
+	ProjectSettings.set_setting("braincloud/config/app_share.web", web_settings["share"])
+	ProjectSettings.set_setting("braincloud/config/app_pad.web", web_settings["pad"])
+
 	ProjectSettings.set_setting("braincloud/config/server_url",    server_url)
 	ProjectSettings.set_setting("braincloud/config/app_version",   app_ver if not app_ver.is_empty() else "1.0.0")
 	ProjectSettings.set_setting("braincloud/debug/enable_logging", log_check.button_pressed)
