@@ -101,6 +101,26 @@ var _app_name_edit: LineEdit = null
 var _app_name_hint: Label = null
 var _user_triggered_login: bool = false  # gates showing error_message until the user clicks Log in/Change App
 
+# brainCloud account (OAuth + Builder API) login/team/app flow
+var _login_flow: BrainCloudLoginFlow = null
+var _account_container: Control = null
+var _cred_fields: Dictionary = {}
+var _logout_btn: Button = null   # lives below App Credentials, hidden until logged in
+var _log_check: CheckBox = null
+var _status_label: Label = null
+var _show_create_app: bool = false
+var _new_app_name: String = ""
+var _new_app_name_edit: LineEdit = null
+var _new_app_platform_state: Dictionary = {}
+var _create_with_template: bool = false
+var _selected_template_id: String = ""
+var _creds_fields_box: Control = null
+var _creds_header: Button = null
+var _app_name_row: Control = null   # read-only App Name — shown once an app is synced or cached
+var _app_name_edit: LineEdit = null
+var _app_name_hint: Label = null
+var _user_triggered_login: bool = false  # gates showing error_message until the user clicks Log in/Change App
+
 
 func _enter_tree() -> void:
 	_register_project_settings()
