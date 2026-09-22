@@ -16,7 +16,6 @@ func run(bc: BCTest) -> void:
 	await test_get_shared_entities_for_profile_id(bc)
 	await test_get_shared_entities_list_for_profile_id(bc)
 	await test_increment_user_entity_data(bc)
-	await test_make_system_entity(bc)
 	await test_singleton(bc)
 	await test_delete_entity(bc)
 
@@ -116,18 +115,6 @@ func test_increment_user_entity_data(bc: BCTest) -> void:
 		_entity_id, {"number": 5}
 	)
 	bc.expect_status_ok(response)
-
-func test_make_system_entity(bc: BCTest) -> void:
-	bc.begin_test("test_make_system_entity")
-	if _entity_id.is_empty():
-		bc.expect_true(true, "skipping — no entity_id")
-		return
-	var response := await bc.bc_wrapper.entity_service.make_system_entity(_entity_id, -1, {"other": 1})
-	var status: int = response.get("status", -1)
-	bc.expect_true(
-		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
-		"Expected 200 or 400, got %d" % status
-	)
 
 func test_singleton(bc: BCTest) -> void:
 	bc.begin_test("test_update_singleton")

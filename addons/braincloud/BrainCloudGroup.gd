@@ -51,7 +51,7 @@ func approve_group_join_request(group_id: String, profile_id: String, role: Stri
 		OperationParam.GROUP_ROLE: role,
 		OperationParam.GROUP_ATTRIBUTES: json_attributes
 	}
-	return await _send(ServiceOperation.GROUP_ACCEPT_INVITATION, data)
+	return await _send(ServiceOperation.GROUP_APPROVE_JOIN_REQUEST, data)
 
 ## Automatically joins an open group that matches the search criteria and group type.
 ##
@@ -83,7 +83,7 @@ func auto_join_group_multi(group_types: Array, auto_join_strategy: String, data_
 		OperationParam.GROUP_AUTO_JOIN_STRATEGY: auto_join_strategy,
 		OperationParam.GROUP_WHERE: data_query
 	}
-	return await _send(ServiceOperation.GROUP_AUTO_JOIN, data)
+	return await _send(ServiceOperation.GROUP_AUTO_JOIN_MULTI, data)
 
 ## Cancels an outstanding invitation to the specified user.
 ##
@@ -211,7 +211,7 @@ func delete_member(group_id: String, profile_id: String) -> Dictionary:
 		OperationParam.GROUP_ID: group_id,
 		OperationParam.GROUP_PROFILE_ID: profile_id
 	}
-	return await _send(ServiceOperation.GROUP_DELETE_MEMBER, data)
+	return await _send(ServiceOperation.GROUP_DELETE_MEMBER_FROM_GROUP, data)
 
 ## Returns a list of groups the current user belongs to.
 ##

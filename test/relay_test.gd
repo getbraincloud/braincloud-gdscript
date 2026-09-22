@@ -1,7 +1,8 @@
 # Copyright 2026 bitHeads, Inc. All Rights Reserved.
 extends RefCounted
 
-const _ROOM_READY_TIMEOUT := 30.0
+const _ROOM_READY_TIMEOUT := 90.0
+const _DISBAND_ROOM_LAUNCHED := 80101
 # Same lobby type used by the C++ and Dart relay unit tests against app 20001.
 # Has everyReadyMinNum=1 so a single ready player immediately triggers ROOM_READY.
 const _RELAY_LOBBY_TYPE   := "READY_START_V2"
@@ -102,7 +103,10 @@ func test_relay_find_lobby_and_room_ready(bc: BCTest) -> void:
 		bc.expect_true(false, "skipping — RTT not enabled (see test_relay_enable_rtt)")
 		return
 
-	var room_ready := [{}]
+	var room_ready    := [{}]
+	var disbanded     := [{}]
+	var saw_assigned  := [false]
+	var saw_launch_disband := [false]
 	var all_ops:    Array[String] = []
 
 	bc.bc_wrapper.rtt_service.register_rtt_lobby_callback(func(msg: Dictionary) -> void:
@@ -110,9 +114,26 @@ func test_relay_find_lobby_and_room_ready(bc: BCTest) -> void:
 		if not all_ops.has(op):
 			all_ops.append(op)
 			print("[relay_test] RTT lobby op: %s" % op)
-		if op == "ROOM_READY" or op == "ROOM_ASSIGNED":
+		# ROOM_READY is the ONLY op that permits connecting. ROOM_ASSIGNED means a relay
+		# server has been allocated, not that it is listening yet — connecting on it races
+		# the server's startup and is never valid brainCloud usage. So there is no fallback
+		# and no grace window: we wait for ROOM_READY however long it takes. If the room
+		# genuinely fails to report ready, the server says so with DISBANDED (carrying the
+		# reason) — that is what ends the wait early and fails the test.
+		if op == "ROOM_READY":
 			if room_ready[0].is_empty():
 				room_ready[0] = msg.get("data", {})
+		elif op == "ROOM_ASSIGNED":
+			saw_assigned[0] = true # diagnostics only — never connect on this
+		elif op == "DISBANDED":
+			var reason: Dictionary = msg.get("data", {}).get("reason", {})
+			if int(reason.get("code", 0)) == _DISBAND_ROOM_LAUNCHED:
+				# The room launched and the lobby was torn down because it is no longer
+				# needed. Expected on disband-on-start lobby types. Deliberately does NOT
+				# end the wait: if ROOM_READY somehow has not landed yet, it still will.
+				saw_launch_disband[0] = true
+			elif disbanded[0].is_empty():
+				disbanded[0] = msg.get("data", {})
 	)
 
 	var algo := {"strategy": "ranged-absolute", "alignment": "center", "ranges": [1000]}
@@ -129,22 +150,42 @@ func test_relay_find_lobby_and_room_ready(bc: BCTest) -> void:
 	var timed_out := [false]
 	var timer := bc.get_tree().create_timer(_ROOM_READY_TIMEOUT)
 	timer.timeout.connect(func(): timed_out[0] = true)
-	while room_ready[0].is_empty() and not timed_out[0]:
+
+	# Wait for ROOM_READY only. A DISBANDED that is NOT the "room launched" one (80101) is
+	# the server saying the room will never be ready, so that is the real failure signal;
+	# the timer is just the hang guard.
+	while room_ready[0].is_empty() and disbanded[0].is_empty() and not timed_out[0]:
 		await bc.get_tree().process_frame
 
 	bc.bc_wrapper.rtt_service.deregister_rtt_lobby_callback()
 
-	if timed_out[0]:
-		bc.expect_true(false,
-			"timed out waiting for ROOM_ASSIGNED/ROOM_READY after %.0fs (ops seen: %s) — check that '%s' has a relay server with everyReadyMinNum=1" % [_ROOM_READY_TIMEOUT, str(all_ops), _relay_lobby_type])
-		if not _lobby_id.is_empty():
-			await bc.bc_wrapper.lobby_service.leave_lobby(_lobby_id)
-			_lobby_id = ""
+	# ROOM_READY wins over anything else seen in the same batch. The ops arrive together
+	# (STARTING → ROOM_ASSIGNED → ROOM_READY → DISBANDED all land before this loop next
+	# runs), so checking a disband first would fail a room that came up perfectly.
+	if not room_ready[0].is_empty():
+		_room_data = room_ready[0]
+		bc.expect_true(not _room_data.is_empty(), "room data should not be empty")
+		bc.expect_true(_room_data.has("connectData"), "room data should contain connectData")
 		return
 
-	_room_data = room_ready[0]
-	bc.expect_true(not _room_data.is_empty(), "ROOM_READY data should not be empty")
-	bc.expect_true(_room_data.has("connectData"), "ROOM_READY data should contain connectData")
+	if not disbanded[0].is_empty():
+		bc.expect_true(false,
+			"lobby DISBANDED before ROOM_READY: %s" % JSON.stringify(disbanded[0]))
+	elif saw_launch_disband[0]:
+		# The room reported as launched but its connect info never arrived — a real
+		# failure, and a different one from the room failing to come up at all.
+		bc.expect_true(false,
+			"lobby disbanded with 'room launched' (%d) but ROOM_READY never arrived after %.0fs (ops seen: %s)"
+				% [_DISBAND_ROOM_LAUNCHED, _ROOM_READY_TIMEOUT, str(all_ops)])
+	else:
+		bc.expect_true(false,
+			"timed out waiting for ROOM_READY after %.0fs (ROOM_ASSIGNED %s; ops seen: %s) — check that '%s' has a relay server with everyReadyMinNum=1"
+				% [_ROOM_READY_TIMEOUT, ("was received" if saw_assigned[0] else "never arrived"), str(all_ops), _relay_lobby_type])
+
+	if not _lobby_id.is_empty():
+		await bc.bc_wrapper.lobby_service.leave_lobby(_lobby_id)
+		_lobby_id = ""
+
 
 func test_relay_connect_ws(bc: BCTest) -> void:
 	bc.begin_test("relay_connect_ws")

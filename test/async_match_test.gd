@@ -50,7 +50,7 @@ func test_create_and_complete_flow(bc: BCTest) -> void:
 	# submitTurn (use version returned by updateMatchSummary)
 	bc.begin_test("test_submit_turn")
 	var turn_resp := await bc.bc_wrapper.async_match_service.submit_turn(
-		_owner_id, _match_id, version, {"map": "level1"}, {},
+		_owner_id, _match_id, version, {"map": "level1"}, "",
 		bc.user_b.profile_id, {"summary": "test_sum"}, {"summary": "test_sum"}
 	)
 	bc.expect_status_ok(turn_resp)
@@ -70,7 +70,7 @@ func test_create_and_complete_flow(bc: BCTest) -> void:
 func test_create_match_with_initial_turn(bc: BCTest) -> void:
 	bc.begin_test("test_create_match_with_initial_turn")
 	var create_resp := await bc.bc_wrapper.async_match_service.create_match_with_initial_turn(
-		_make_opponents(bc), {"matchStateData": "test"}, {}, bc.user_b.profile_id, {"summary": "sum"}
+		_make_opponents(bc), {"matchStateData": "test"}, "", bc.user_b.profile_id, {"summary": "sum"}
 	)
 	bc.expect_status_ok(create_resp)
 	var match_data: Dictionary = create_resp.get("data", {})
@@ -109,13 +109,13 @@ func test_complete_match_with_summary_data(bc: BCTest) -> void:
 		return
 
 	var turn_resp := await bc.bc_wrapper.async_match_service.submit_turn(
-		owner_id, match_id, 0, {"summary": "sum"}, {},
+		owner_id, match_id, 0, {"summary": "sum"}, "",
 		bc.user_b.profile_id, {"summary": "sum"}, {"summary": "sum"}
 	)
 	bc.expect_status_ok(turn_resp)
 
 	var complete_resp := await bc.bc_wrapper.async_match_service.complete_match_with_summary_data(
-		owner_id, match_id, {"msg": "done"}, {"summary": "sum"}
+		owner_id, match_id, "done", {"summary": "sum"}
 	)
 	bc.expect_status_ok(complete_resp)
 
@@ -131,12 +131,12 @@ func test_abandon_match_with_summary_data(bc: BCTest) -> void:
 		return
 
 	var turn_resp := await bc.bc_wrapper.async_match_service.submit_turn(
-		owner_id, match_id, 0, {"summary": "sum"}, {},
+		owner_id, match_id, 0, {"summary": "sum"}, "",
 		bc.user_b.profile_id, {"summary": "sum"}, {"summary": "sum"}
 	)
 	bc.expect_status_ok(turn_resp)
 
 	var abandon_resp := await bc.bc_wrapper.async_match_service.abandon_match_with_summary_data(
-		owner_id, match_id, {"msg": "done"}, {"summary": "sum"}
+		owner_id, match_id, "done", {"summary": "sum"}
 	)
 	bc.expect_status_ok(abandon_resp)

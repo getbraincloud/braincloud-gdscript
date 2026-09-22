@@ -491,7 +491,7 @@ func attach_peer_profile(peer_code: String, external_id: String, auth_token: Str
 		OperationParam.IDENTITY_SERVICE_EXTERNAL_AUTH_NAME: external_auth_name,
 		OperationParam.IDENTITY_SERVICE_FORCE_CREATE: force_create
 	}
-	return await _send(ServiceOperation.ATTACH, data)
+	return await _send(ServiceOperation.ATTACH_PEER_PROFILE, data)
 
 ## Detaches a peer identity from this user's profile.
 ##
@@ -503,7 +503,7 @@ func detach_peer(peer_code: String) -> Dictionary:
 	var data := {
 		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_PEER_CODE: peer_code
 	}
-	return await _send(ServiceOperation.DETACH, data)
+	return await _send(ServiceOperation.DETACH_PEER, data)
 
 ## Returns a list of peer profiles attached to this user.
 ##

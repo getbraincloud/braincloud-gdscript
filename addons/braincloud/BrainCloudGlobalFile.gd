@@ -57,7 +57,7 @@ func get_cdn_url_for_file(file_id: String) -> Dictionary:
 	var data := {
 		OperationParam.GLOBAL_FILE_FILE_ID: file_id
 	}
-	return await _send("GET_CDN_URL", data)
+	return await _send(ServiceOperation.GET_GLOBAL_CDN_URL, data)
 
 func _send(operation: String, data: Dictionary) -> Dictionary:
 	var sc := ServerCall.new(ServiceName.GLOBAL_FILE, operation, data)

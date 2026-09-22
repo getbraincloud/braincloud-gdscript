@@ -79,6 +79,27 @@ var _panel_control: Control = null
 # Nodes that need to swap when the editor theme changes
 var _logo_png:   TextureRect = null  # swaps between dark-bg and light-bg variant
 var _warn_label: Label       = null  # brand orange — cannot inherit from theme
+var _stale_secret_label: Label = null  # brand orange — shown when app_id is set but the saved secret can't be read
+
+# brainCloud account (OAuth + Builder API) login/team/app flow
+var _login_flow: BrainCloudLoginFlow = null
+var _account_container: Control = null
+var _cred_fields: Dictionary = {}
+var _logout_btn: Button = null   # lives below App Credentials, hidden until logged in
+var _log_check: CheckBox = null
+var _status_label: Label = null
+var _show_create_app: bool = false
+var _new_app_name: String = ""
+var _new_app_name_edit: LineEdit = null
+var _new_app_platform_state: Dictionary = {}
+var _create_with_template: bool = false
+var _selected_template_id: String = ""
+var _creds_fields_box: Control = null
+var _creds_header: Button = null
+var _app_name_row: Control = null   # read-only App Name — shown once an app is synced or cached
+var _app_name_edit: LineEdit = null
+var _app_name_hint: Label = null
+var _user_triggered_login: bool = false  # gates showing error_message until the user clicks Log in/Change App
 
 # brainCloud account (OAuth + Builder API) login/team/app flow
 var _login_flow: BrainCloudLoginFlow = null
@@ -113,7 +134,7 @@ func _enter_tree() -> void:
 	get_editor_interface().get_editor_settings().settings_changed.connect(_update_panel_theme)
 
 	_login_flow = BrainCloudLoginFlow.new()
-	_login_flow.configure(_CREDS_PATH, _panel_control)
+	_login_flow.configure(_panel_control)
 	_login_flow.state_changed.connect(_refresh_account_section)
 	_login_flow.app_selected.connect(_on_app_selected)
 	_refresh_account_section()
@@ -201,6 +222,9 @@ func _update_panel_theme() -> void:
 	# Warning colour is brand orange — cannot be left to the theme
 	if is_instance_valid(_warn_label):
 		_warn_label.add_theme_color_override("font_color",
+			_BC_WARN_LIGHT if _is_light else _BC_WARN_DARK)
+	if is_instance_valid(_stale_secret_label):
+		_stale_secret_label.add_theme_color_override("font_color",
 			_BC_WARN_LIGHT if _is_light else _BC_WARN_DARK)
 
 
@@ -445,6 +469,14 @@ func _build_panel() -> Control:
 	_warn_label.add_theme_font_size_override("font_size", 11)
 	_creds_fields_box.add_child(_warn_label)
 
+	_stale_secret_label = Label.new()
+	_stale_secret_label.text          = ("⚠  Saved app secret is in an outdated format and can't be read. " +
+		"Log in above and reselect this app to update it.")
+	_stale_secret_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_stale_secret_label.add_theme_font_size_override("font_size", 11)
+	_creds_fields_box.add_child(_stale_secret_label)
+	_update_stale_secret_warning()
+
 	# Below App Credentials (outside the collapsible box, so it stays visible even
 	# when that section is collapsed) — hidden until logged in, see _refresh_account_section().
 	_logout_btn = Button.new()
@@ -538,8 +570,9 @@ func _update_synced_app_name() -> void:
 
 	# No live match (logged out, or the app list just hasn't loaded yet) — fall
 	# back to the last name cached for this exact App ID rather than hiding.
-	if _read_setting("app_name_id") == current_app_id:
-		var cached_name := _read_setting("app_name")
+	var cached: Dictionary = BrainCloudNative.new().resolve_app_name(_CREDS_PATH)
+	if str(cached.get("app_id", "")) == current_app_id:
+		var cached_name := str(cached.get("app_name", ""))
 		if not cached_name.is_empty():
 			_app_name_edit.text = cached_name
 			_app_name_hint.text = "Read only"
@@ -549,19 +582,16 @@ func _update_synced_app_name() -> void:
 	_app_name_row.visible = false
 
 
-# Persisted alongside App ID/Secret in braincloud.cfg so _update_synced_app_name
-# can still show a name while offline. Keyed to the App ID it was captured for
-# so a manually-changed App ID never displays a stale cached name.
+# Persisted alongside App ID/Secret in braincloud.cfg (encoded, like app_id/app_secret)
+# so _update_synced_app_name can still show a name while offline. Keyed to the App ID
+# it was captured for so a manually-changed App ID never displays a stale cached name.
 func _save_app_name(app_id: String, name: String) -> void:
 	if app_id.is_empty() or name.is_empty():
 		return
-	if _read_setting("app_name_id") == app_id and _read_setting("app_name") == name:
+	var cached: Dictionary = BrainCloudNative.new().resolve_app_name(_CREDS_PATH)
+	if str(cached.get("app_id", "")) == app_id and str(cached.get("app_name", "")) == name:
 		return
-	var creds := ConfigFile.new()
-	creds.load(_CREDS_PATH)  # preserve other sections already on disk
-	creds.set_value("credentials", "app_name_id", app_id)
-	creds.set_value("credentials", "app_name",    name)
-	creds.save(_CREDS_PATH)
+	BrainCloudNative.new().save_app_name(_CREDS_PATH, app_id, name)
 
 
 func _collapse_credentials() -> void:
@@ -997,18 +1027,21 @@ func _get_plugin_version() -> String:
 # ── Data helpers ───────────────────────────────────────────────────────────────
 
 func _read_setting(key: String) -> String:
-	if key in ["app_id", "app_secret", "app_name", "app_name_id"]:
-		var cfg := ConfigFile.new()
-		if cfg.load(_CREDS_PATH) == OK:
-			var v = str(cfg.get_value("credentials", key, ""))
-			if not v.is_empty():
-				return v
-		return ""
+	if key == "app_secret":
+		return _read_stored_secret()
+	if key in ["app_id", "app_name"]:
+		var resolved: Dictionary = BrainCloudNative.new().resolve_app_name(_CREDS_PATH)
+		return str(resolved.get(key, ""))
 	var full_key := "braincloud/config/" + key
 	if ProjectSettings.has_setting(full_key):
 		var v = ProjectSettings.get_setting(full_key)
 		return str(v) if v != null else ""
 	return ""
+
+
+func _read_stored_secret() -> String:
+	var resolved: Dictionary = BrainCloudNative.new().resolve_config_sync(_CREDS_PATH)
+	return str(resolved.get("secret", ""))
 
 
 func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
@@ -1022,12 +1055,16 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 		status.text = "App ID, Secret and URL are required."
 		return
 
-	var creds := ConfigFile.new()
-	creds.load(_CREDS_PATH)  # preserve other sections already on disk (e.g. [oauth] session)
-	creds.set_value("credentials", "app_id",    app_id)
-	creds.set_value("credentials", "app_secret", app_secret)
-	creds.save(_CREDS_PATH)
+	if not BrainCloudNative.new().prepare_config(_CREDS_PATH, app_id, app_secret):
+		status.add_theme_color_override("font_color", Color("#dd5555"))
+		status.text = "Failed to save credentials."
+		return
 	_ensure_gitignore()
+
+	var web_settings := BrainCloudWebConfig.encode(app_secret)
+	ProjectSettings.set_setting("braincloud/config/app_id.web", app_id)
+	ProjectSettings.set_setting("braincloud/config/app_share.web", web_settings["share"])
+	ProjectSettings.set_setting("braincloud/config/app_pad.web", web_settings["pad"])
 
 	ProjectSettings.set_setting("braincloud/config/server_url",    server_url)
 	ProjectSettings.set_setting("braincloud/config/app_version",   app_ver if not app_ver.is_empty() else "1.0.0")
@@ -1036,6 +1073,7 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 
 	status.add_theme_color_override("font_color", Color("#44bb66"))
 	status.text = "✓  Saved"
+	_update_stale_secret_warning()
 
 
 func _ensure_gitignore() -> void:
@@ -1058,3 +1096,16 @@ func _ensure_gitignore() -> void:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f:
 		f.store_string(content)
+
+
+# An app_id with no readable secret looks configured but can't authenticate -- most
+# often because it was saved before this addon's current encoding scheme (that path
+# is a clean break, not an auto-migration; see BrainCloudNative.resolve_config).
+# Surface that explicitly instead of leaving the App Secret field blank with no
+# explanation of why a previously-working project stopped authenticating.
+func _update_stale_secret_warning() -> void:
+	if not is_instance_valid(_stale_secret_label):
+		return
+	var app_id     := (_cred_fields["app_id"]     as LineEdit).text.strip_edges()
+	var app_secret := (_cred_fields["app_secret"] as LineEdit).text.strip_edges()
+	_stale_secret_label.visible = not app_id.is_empty() and app_secret.is_empty()

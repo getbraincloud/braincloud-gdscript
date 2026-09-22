@@ -253,7 +253,14 @@ func _process(delta: float) -> void:
 			# CONNECTING — still establishing the transport-level connection. Give up after
 			# _CONNECT_TIMEOUT_MS instead of waiting forever (see the constant's comment).
 			if _state == _State.CONNECTING and Time.get_ticks_msec() - _last_recv_time_ms > _CONNECT_TIMEOUT_MS:
-				_fail_transport("Relay %s connect timed out after %dms" % [_transport_kind.to_upper(), _CONNECT_TIMEOUT_MS])
+				# Include the transport's own view of why it never came up — a bare
+				# "timed out" says nothing about whether the peer answered at all.
+				var diag := ""
+				if _transport and _transport.has_method("get_debug_info"):
+					var d: Dictionary = _transport.get_debug_info()
+					diag = " [socket=%s close_code=%d reason='%s' elapsed=%dms]" % [
+						d.get("state", "?"), d.get("code", -1), d.get("reason", ""), d.get("elapsed_ms", 0)]
+				_fail_transport("Relay %s connect timed out after %dms%s" % [_transport_kind.to_upper(), _CONNECT_TIMEOUT_MS, diag])
 
 func _tick_udp_reliables() -> void:
 	var now := Time.get_ticks_msec()

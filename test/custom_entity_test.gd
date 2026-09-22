@@ -122,6 +122,8 @@ func test_singleton_flow(bc: BCTest) -> void:
 		entity_type, -1, {"singletonVal": 1}, {"other": 1}, -1
 	)
 	var u_status: int = update_resp.get("status", -1)
+	# this test app's custom entity type does not have "owned" singleton entities configured
+	# in the portal ("Singleton entity must be owned...does not support owned custom entities") — 400 is expected
 	bc.expect_true(
 		u_status == StatusCodes.OK or u_status == StatusCodes.BAD_REQUEST,
 		"Expected 200 or 400, got %d" % u_status

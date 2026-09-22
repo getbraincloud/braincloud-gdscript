@@ -107,7 +107,7 @@ static func get_app_secret(parent: Node, config: Dictionary, team_id: String, ap
 
 
 static func get_template_app_list(parent: Node, config: Dictionary, on_complete: Callable) -> void:
-	_call(parent, HTTPClient.METHOD_GET, "/builder/v1/utility/templateapps?liveOnly=true", "", config, on_complete)
+	_call(parent, HTTPClient.METHOD_GET, "/builder/v1/utility/templateapps?liveOnly=true&engine=godot", "", config, on_complete)
 
 
 static func create_app(parent: Node, config: Dictionary, team_id: String, app_name: String,

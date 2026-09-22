@@ -39,6 +39,7 @@ func test_list_user_files_in_path(bc: BCTest) -> void:
 
 func test_get_cdn_url_for_file(bc: BCTest) -> void:
 	bc.begin_test("test_get_cdn_url_for_file")
+	# deliberately nonexistent file ("nonexistent.txt") — 400 "File does not exist" is expected
 	var response := await bc.bc_wrapper.file_service.get_cdn_url_for_file("", "nonexistent.txt")
 	var status: int = response.get("status", -1)
 	bc.expect_true(
@@ -49,11 +50,7 @@ func test_get_cdn_url_for_file(bc: BCTest) -> void:
 func test_delete_user_file(bc: BCTest) -> void:
 	bc.begin_test("test_delete_user_file")
 	var response := await bc.bc_wrapper.file_service.delete_user_file(CLOUD_PATH, CLOUD_FILENAME)
-	var status: int = response.get("status", -1)
-	bc.expect_true(
-		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
-		"Expected 200 or 400, got %d" % status
-	)
+	bc.expect_status_ok(response)
 
 func test_delete_user_files(bc: BCTest) -> void:
 	bc.begin_test("test_delete_user_files")

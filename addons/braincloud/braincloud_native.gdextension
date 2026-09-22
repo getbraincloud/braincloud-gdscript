@@ -1,0 +1,11 @@
+[configuration]
+entry_symbol = "braincloud_native_init"
+compatibility_minimum = "4.2"
+
+[libraries]
+macos.debug = "res://addons/braincloud/bin/BrainCloudNative.dylib"
+macos.release = "res://addons/braincloud/bin/BrainCloudNative.dylib"
+windows.debug.x86_64 = "res://addons/braincloud/bin/BrainCloudNative.dll"
+windows.release.x86_64 = "res://addons/braincloud/bin/BrainCloudNative.dll"
+linux.debug.x86_64 = "res://addons/braincloud/bin/BrainCloudNative.so"
+linux.release.x86_64 = "res://addons/braincloud/bin/BrainCloudNative.so"

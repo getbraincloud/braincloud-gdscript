@@ -315,22 +315,6 @@ func increment_shared_user_entity_data(entity_id: String, target_profile_id: Str
 	}
 	return await _send(ServiceOperation.INCREMENT_SHARED_USER_ENTITY_DATA, data)
 
-## Makes the given entity a system entity.
-##
-## Service Name - Entity[br]
-## Service Operation - MAKE_SYSTEM_ENTITY
-##
-## @param entity_id The entity id
-## @param version Current version of the entity. Use -1 to skip version checking
-## @param acl The new access control list
-func make_system_entity(entity_id: String, version: int, acl: Dictionary) -> Dictionary:
-	var data := {
-		OperationParam.ENTITY_SERVICE_ENTITY_ID: entity_id,
-		OperationParam.ENTITY_SERVICE_ENTITY_VERSION: version,
-		OperationParam.ENTITY_SERVICE_ACL: acl
-	}
-	return await _send(ServiceOperation.MAKE_SYSTEM_ENTITY, data)
-
 func _send(operation: String, data: Dictionary) -> Dictionary:
 	var sc := ServerCall.new(ServiceName.ENTITY, operation, data)
 	_client_ref.comms.add_to_queue(sc)

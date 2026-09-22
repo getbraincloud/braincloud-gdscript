@@ -3,7 +3,7 @@ class_name BrainCloudClient
 extends Node
 
 const DEFAULT_SERVER_URL := "https://api.braincloudservers.com/dispatcherv2"
-const BRAINCLOUD_VERSION := "6.0.2"
+const BRAINCLOUD_VERSION := "6.1.0"
 
 var _app_version: String = ""
 var _language_code: String = "en"
@@ -128,6 +128,16 @@ func initialize(secret_key: String, app_id: String, app_version: String, server_
 		push_error("BrainCloud initialize error: " + error)
 		return
 	_comms.initialize(server_url, app_id, secret_key)
+	_initialized = true
+
+func initialize_with_profile(sign_profile: Callable, app_id: String, app_version: String, server_url: String = DEFAULT_SERVER_URL) -> void:
+	if server_url.length() == 0 or not sign_profile.is_valid() or app_id.length() == 0 or app_version.length() == 0:
+		push_error("BrainCloud initialize error: serverURL, signProfile, appId, or appVersion was empty/invalid")
+		return
+	_app_version = app_version
+	_language_code = OS.get_locale_language()
+	_country_code = OS.get_locale().split("_")[-1] if "_" in OS.get_locale() else "US"
+	_comms.initialize_with_profile(server_url, app_id, sign_profile)
 	_initialized = true
 
 func initialize_with_apps(default_app_id: String, app_id_secret_map: Dictionary, app_version: String, server_url: String = DEFAULT_SERVER_URL) -> void:

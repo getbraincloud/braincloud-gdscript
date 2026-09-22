@@ -35,7 +35,7 @@ var _app_id: String = ""
 var _session_id: String = ""
 var _server_url: String = ""
 var _upload_url: String = ""
-var _app_id_secret_map: Dictionary = {}
+var _app_profiles: Dictionary = {} # app_id -> Callable(payload: PackedByteArray) -> String
 var _cached_status_code: int = StatusCodes.FORBIDDEN
 var _cached_reason_code: int = ReasonCodes.NO_SESSION
 var _cached_status_message: String = "No session"
@@ -65,8 +65,11 @@ func get_app_id() -> String:
 func get_session_id() -> String:
 	return _session_id
 
-func get_secret_key() -> String:
-	return _app_id_secret_map.get(_app_id, "NO SECRET DEFINED FOR '%s'" % _app_id)
+func sign_payload(payload: PackedByteArray) -> String:
+	var profile: Callable = _app_profiles.get(_app_id, Callable())
+	if not profile.is_valid():
+		return _calculate_md5_bytes(payload + ("NO SECRET DEFINED FOR '%s'" % _app_id).to_utf8_buffer())
+	return profile.call(payload)
 
 func get_server_url() -> String:
 	return _server_url
@@ -90,15 +93,38 @@ func initialize(server_url: String, app_id: String, secret_key: String) -> void:
 		format_url = format_url.substr(0, format_url.length() - 1)
 
 	_upload_url = format_url + "/uploader"
-	_app_id_secret_map[app_id] = secret_key
+	_app_profiles[app_id] = func(payload: PackedByteArray) -> String:
+		return _calculate_md5_bytes(payload + secret_key.to_utf8_buffer())
+	_app_id = app_id
+	_blocking_queue = false
+	_initialized = true
+
+# Initializes with a signing profile instead of a plaintext secret -- see
+# BrainCloudNative.resolve_config's second callback argument.
+func initialize_with_profile(server_url: String, app_id: String, sign_profile: Callable) -> void:
+	reset_communication()
+	_expected_incoming_packet_id = NO_PACKET_EXPECTED
+	_server_url = server_url
+
+	var suffix := "/dispatcherv2"
+	var format_url := server_url
+	if format_url.ends_with(suffix):
+		format_url = format_url.substr(0, format_url.length() - suffix.length())
+	while format_url.length() > 0 and format_url.ends_with("/"):
+		format_url = format_url.substr(0, format_url.length() - 1)
+
+	_upload_url = format_url + "/uploader"
+	_app_profiles[app_id] = sign_profile
 	_app_id = app_id
 	_blocking_queue = false
 	_initialized = true
 
 func initialize_with_apps(server_url: String, default_app_id: String, app_id_secret_map: Dictionary) -> void:
-	_app_id_secret_map.clear()
-	_app_id_secret_map.merge(app_id_secret_map)
-	initialize(server_url, default_app_id, _app_id_secret_map.get(default_app_id, ""))
+	for app_id: String in app_id_secret_map:
+		var secret_key: String = app_id_secret_map[app_id]
+		_app_profiles[app_id] = func(payload: PackedByteArray) -> String:
+			return _calculate_md5_bytes(payload + secret_key.to_utf8_buffer())
+	initialize(server_url, default_app_id, app_id_secret_map.get(default_app_id, ""))
 
 func register_event_callback(cb: Callable) -> void:
 	_event_callback = cb
@@ -492,7 +518,7 @@ func _internal_send_message(request_state: RequestState) -> void:
 
 	var json_string := JSON.stringify(packet)
 	# Sign the uncompressed body — the server decompresses before validating the signature.
-	var sig := _calculate_md5(json_string + get_secret_key())
+	var sig := sign_payload(json_string.to_utf8_buffer())
 
 	var headers: Array[String] = [
 		"Content-Type: application/json;charset=utf-8",
@@ -703,8 +729,8 @@ func is_authenticate_request_in_progress() -> bool:
 func set_packet_timeouts_to_default() -> void:
 	packet_timeouts = [15, 20, 35, 50]
 
-func _calculate_md5(input: String) -> String:
+func _calculate_md5_bytes(data: PackedByteArray) -> String:
 	var ctx := HashingContext.new()
 	ctx.start(HashingContext.HASH_MD5)
-	ctx.update(input.to_utf8_buffer())
+	ctx.update(data)
 	return ctx.finish().hex_encode()

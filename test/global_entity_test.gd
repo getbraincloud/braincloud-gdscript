@@ -172,6 +172,9 @@ func test_update_entity_owner_and_acl(bc: BCTest) -> void:
 		_entity_id, -1, bc.user_b.profile_id, {"other": 2}
 	)
 	var status: int = response.get("status", -1)
+	# test_make_system_entity (run earlier in this suite) already cleared this entity's
+	# owner and set its ACL to read-only ("other": 1) — the caller is no longer the owner
+	# and the ACL forbids the change, so the server correctly returns 202/"Insufficient permissions"
 	bc.expect_true(
 		status == StatusCodes.OK or status == StatusCodes.ACCEPTED or status == StatusCodes.BAD_REQUEST,
 		"Expected 200, 202, or 400, got %d" % status
