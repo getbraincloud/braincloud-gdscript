@@ -16,6 +16,25 @@ var _event_callbacks: Dictionary = {}
 var _auth: Dictionary = {}
 var _pending_emit: Dictionary = {}
 
+# Diagnostics. Without these an RTT connection that opens but never completes its
+# handshake logs "Connecting to: ..." and then nothing at all - the run just carries
+# on and there is no way to tell from a CI log whether RTT ever came up.
+var _last_logged_ws_state: int = -1
+var _connect_started_ms: int = 0
+var _handshake_sent_ms: int = 0
+
+# A socket that opens but whose CONNECT is never answered would otherwise sit in
+# HANDSHAKE forever, silently.
+const _HANDSHAKE_TIMEOUT_MS := 15000
+
+static func _ws_state_name(state: int) -> String:
+	match state:
+		WebSocketPeer.STATE_CONNECTING: return "CONNECTING"
+		WebSocketPeer.STATE_OPEN:       return "OPEN"
+		WebSocketPeer.STATE_CLOSING:    return "CLOSING"
+		WebSocketPeer.STATE_CLOSED:     return "CLOSED"
+	return "UNKNOWN(%d)" % state
+
 func _init(client_ref: BrainCloudClient) -> void:
 	_client_ref = client_ref
 
@@ -25,6 +44,9 @@ func connect_ws(endpoint: Dictionary, auth: Dictionary) -> void:
 	_connection_id = ""
 	_heart_beat_timer = 0.0
 	_pending_emit = {}
+	_last_logged_ws_state = -1
+	_handshake_sent_ms = 0
+	_connect_started_ms = Time.get_ticks_msec()
 	_ws = WebSocketPeer.new()
 
 	var host: String = endpoint.get("host", "")
@@ -52,7 +74,7 @@ func connect_ws(endpoint: Dictionary, auth: Dictionary) -> void:
 	if err != OK:
 		_state = _State.DISCONNECTED
 		_pending_emit = {"status": 900, "reason_code": 0, "status_message": "RTT WebSocket connect_to_url failed: %d" % err}
-		print("[RTTComms] connect_to_url error: %d" % err)
+		print("[RTTComms] connect_to_url failed immediately: %s (Error %d)" % [error_string(err), err])
 
 func disconnect_ws() -> void:
 	if _ws != null:
@@ -88,10 +110,35 @@ func _process(delta: float) -> void:
 	_ws.poll()
 	var ws_state := _ws.get_ready_state()
 
+	# One line per transition. Without it a failed RTT connect reports nothing at all,
+	# and there is no way to tell "nothing answered" (still CONNECTING) from "actively
+	# refused" (CLOSED with a code).
+	if ws_state != _last_logged_ws_state:
+		var elapsed := Time.get_ticks_msec() - _connect_started_ms
+		var extra := ""
+		if ws_state == WebSocketPeer.STATE_CLOSED:
+			extra = " code=%d reason='%s'" % [_ws.get_close_code(), _ws.get_close_reason()]
+		print("[RTTComms] socket %s -> %s after %dms%s"
+			% [_ws_state_name(_last_logged_ws_state), _ws_state_name(ws_state), elapsed, extra])
+		_last_logged_ws_state = ws_state
+
 	if ws_state == WebSocketPeer.STATE_OPEN:
 		if _state == _State.CONNECTING:
 			_state = _State.HANDSHAKE
+			_handshake_sent_ms = Time.get_ticks_msec()
+			print("[RTTComms] socket open, sending RTT CONNECT handshake")
 			_send_connect_request()
+		elif _state == _State.HANDSHAKE and _handshake_sent_ms > 0 \
+				and Time.get_ticks_msec() - _handshake_sent_ms >= _HANDSHAKE_TIMEOUT_MS:
+			# Socket is up but the server never answered CONNECT. Fail loudly rather
+			# than sitting here for the rest of the run.
+			var waited := Time.get_ticks_msec() - _handshake_sent_ms
+			print("[RTTComms] RTT CONNECT was not answered within %dms - giving up" % waited)
+			_state = _State.DISCONNECTED
+			_ws.close()
+			connect_result.emit({"status": 900, "reason_code": 0,
+				"status_message": "RTT handshake timed out: socket opened but the server did not answer CONNECT within %dms" % waited})
+			return
 		elif _state == _State.CONNECTED:
 			_heart_beat_timer += delta
 			if _heart_beat_timer >= float(_heart_beat_seconds):
@@ -106,8 +153,13 @@ func _process(delta: float) -> void:
 			if _connection_id.is_empty():
 				var close_code := _ws.get_close_code()
 				var close_reason := _ws.get_close_reason()
+				# Printed as well as emitted - the emitted dict only reaches whoever is
+				# listening, which in a test run is often nobody.
+				print("[RTTComms] closed before handshake completed (code=%d reason='%s')" % [close_code, close_reason])
 				connect_result.emit({"status": 900, "reason_code": 0,
 					"status_message": "RTT WebSocket closed before handshake (ws_code=%d reason=%s)" % [close_code, close_reason]})
+			else:
+				print("[RTTComms] connection closed (code=%d reason='%s')" % [_ws.get_close_code(), _ws.get_close_reason()])
 
 func _send_connect_request() -> void:
 	var msg := {
@@ -144,6 +196,9 @@ func _on_recv(text: String) -> void:
 		_heart_beat_seconds = hb
 		_heart_beat_timer = 0.0
 		_state = _State.CONNECTED
+		var handshake_ms := Time.get_ticks_msec() - _handshake_sent_ms if _handshake_sent_ms > 0 else 0
+		print("[RTTComms] RTT connected: cxId=%s heartbeat=%ds (handshake took %dms)"
+			% [_connection_id, _heart_beat_seconds, handshake_ms])
 		connect_result.emit({"status": 200, "data": data})
 		return
 
