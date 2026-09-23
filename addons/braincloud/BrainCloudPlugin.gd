@@ -101,7 +101,6 @@ var _app_name_edit: LineEdit = null
 var _app_name_hint: Label = null
 var _user_triggered_login: bool = false  # gates showing error_message until the user clicks Log in/Change App
 
-
 func _enter_tree() -> void:
 	_register_project_settings()
 	if not ProjectSettings.has_setting("autoload/" + _AUTOLOAD_NAME):
