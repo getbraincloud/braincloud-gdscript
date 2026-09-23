@@ -52,11 +52,44 @@ var _network_error_callback: Callable = Callable()
 var _global_error_callback: Callable = Callable()
 var _auto_reconnect_callback: Callable = Callable()
 
+
+# ── Keep-alive transport ────────────────────────────────────────────────────
+# One HTTPClient, connected once and reused for every call.
+#
+# This used to build a fresh HTTPRequest node per request. That is one TCP + TLS
+# handshake PER API CALL, and Godot's HTTPRequest cannot be made to reuse a socket -
+# measured: 10 requests through a single reused HTTPRequest node still produced 10
+# separate connections, while one HTTPClient produced 1 connection for 5 requests.
+#
+# Why it mattered: a full unit-test run is several hundred calls. Every closed socket
+# holds its source port in TIME_WAIT - ~120s on Windows, ~60s on Linux, but only ~15s
+# on macOS - so the churn piles up on Windows and Linux and not on Mac. It bites
+# hardest against single-IP environments (internala, internalg) because the 4-tuple
+# space is one destination wide, where internal/prod spread over three A records.
+# That is the exact same defect the C++ SDK fixed in May 2026 ("reuse curl handle and
+# connections to prevent new TCP connections for each call").
+enum _Phase { IDLE, CONNECTING, REQUESTING, READING }
+
+var _http: HTTPClient = null
+var _http_phase: int = _Phase.IDLE
+var _http_host: String = ""
+var _http_port: int = -1
+var _http_tls: bool = false
+var _http_path: String = "/"
+var _http_body: PackedByteArray = PackedByteArray()
+var _http_request_state: RequestState = null
+# Held until the connection is up, then handed to HTTPClient.request().
+var _http_pending_headers: PackedStringArray = PackedStringArray()
+var _http_pending_body: PackedByteArray = PackedByteArray()
+var _http_has_pending: bool = false
 func _init(client_ref: Node) -> void:
 	_client_ref = client_ref
 	_reset_error_cache()
 
 func _process(_delta: float) -> void:
+	# Ahead of update()'s early-outs: an in-flight response still has to be read even
+	# while the queue is blocked, or a blocking call could never complete.
+	_poll_http()
 	update()
 
 func get_app_id() -> String:
@@ -199,20 +232,21 @@ func update() -> void:
 	var bypass_timeout := false
 
 	if _active_request != null:
-		var http := _active_request.http_request
-		if http == null or http.get_http_client_status() == HTTPClient.STATUS_DISCONNECTED:
-			# Response came back via callback; just check if it's done
-			pass
 		# Timeout check
 		var elapsed := Time.get_ticks_msec() / 1000.0 - _active_request.time_sent
 		var timeout := _get_packet_timeout(_active_request)
 		if elapsed >= timeout or bypass_timeout:
 			if not _resend_message(_active_request):
+				# Distinct from the transport errors above: the request went out fine and
+				# the server simply never answered in time. Report the budget and the
+				# attempt count so a too-tight packet_timeouts setting is visible as such
+				# rather than looking like the server was down.
+				var attempts: int = _active_request.retries + 1
 				_active_request = null
 				trigger_comms_error(
 					StatusCodes.CLIENT_NETWORK_ERROR,
 					ReasonCodes.CLIENT_NETWORK_ERROR_TIMEOUT,
-					"Timeout trying to reach brainCloud server")
+					"Request TIMED OUT: no response from brainCloud within %.0fs, after %d attempt(s)" % [timeout, attempts])
 	else:
 		_active_request = _create_and_send_next_request_bundle()
 
@@ -539,25 +573,205 @@ func _internal_send_message(request_state: RequestState) -> void:
 	if _client_ref.logging_enabled:
 		_client_ref.log("REQUEST\n%s" % json_string)
 
-	var http_request := HTTPRequest.new()
-	_client_ref.add_child(http_request)
-	http_request.request_completed.connect(_on_request_completed.bind(request_state, http_request))
-	http_request.request_raw(_server_url, PackedStringArray(headers), HTTPClient.METHOD_POST, body_bytes)
-	request_state.http_request = http_request
+	# A resend reuses the same connection, but anything still on the wire from the
+	# previous attempt has to go first or the response stream would be interleaved.
+	if _http_phase != _Phase.IDLE:
+		_http_reset_connection()
+
+	_http_request_state = request_state
+	_http_body = PackedByteArray()
+	_http_pending_headers = PackedStringArray(headers)
+	_http_pending_body = body_bytes
+	_http_has_pending = true
+	_http_ensure_connected()
 
 	_reset_idle_timer()
 
-func _on_request_completed(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray, request_state: RequestState, http_request: HTTPRequest) -> void:
-	http_request.queue_free()
-	request_state.http_request = null
+# Godot's HTTPRequest.Result values, each with a plain-language explanation.
+#
+# The bare integer ("result=2") means opening the source to decode it, which is no use
+# in a CI log three days later. These turn it into "RESULT_CANT_CONNECT (2) - could not
+# open a connection ...".
+#
+# NOTE ON REASON CODES: every entry below is reported with
+# ReasonCodes.CLIENT_NETWORK_ERROR_TIMEOUT (90001) no matter the actual cause, because
+# 90001 is the ONLY client-network reason code brainCloud defines - it is the single
+# 900xx constant in the cpp, java, csharp and gdscript SDKs alike. Adding GDScript-only
+# codes would make this client disagree with every other SDK and break anyone branching
+# on reason_code, so the detail goes in status_message instead. If we ever want real
+# per-cause codes they have to be defined across all SDKs first.
+const _HTTP_RESULT_INFO := {
+	HTTPRequest.RESULT_CHUNKED_BODY_SIZE_MISMATCH: ["RESULT_CHUNKED_BODY_SIZE_MISMATCH", "the response body length did not match its chunked encoding"],
+	HTTPRequest.RESULT_CANT_CONNECT:               ["RESULT_CANT_CONNECT", "could not open a connection to the server - refused, dropped, or blocked"],
+	HTTPRequest.RESULT_CANT_RESOLVE:               ["RESULT_CANT_RESOLVE", "the server hostname could not be resolved (DNS)"],
+	HTTPRequest.RESULT_CONNECTION_ERROR:           ["RESULT_CONNECTION_ERROR", "the connection failed or was reset while in use"],
+	HTTPRequest.RESULT_TLS_HANDSHAKE_ERROR:        ["RESULT_TLS_HANDSHAKE_ERROR", "the TLS handshake failed - certificate or protocol mismatch"],
+	HTTPRequest.RESULT_NO_RESPONSE:                ["RESULT_NO_RESPONSE", "the connection closed before any response arrived"],
+	HTTPRequest.RESULT_BODY_SIZE_LIMIT_EXCEEDED:   ["RESULT_BODY_SIZE_LIMIT_EXCEEDED", "the response body exceeded the configured size limit"],
+	HTTPRequest.RESULT_BODY_DECOMPRESS_FAILED:     ["RESULT_BODY_DECOMPRESS_FAILED", "the response body could not be decompressed"],
+	HTTPRequest.RESULT_REQUEST_FAILED:             ["RESULT_REQUEST_FAILED", "the request could not be sent"],
+	HTTPRequest.RESULT_DOWNLOAD_FILE_CANT_OPEN:    ["RESULT_DOWNLOAD_FILE_CANT_OPEN", "the download file could not be opened"],
+	HTTPRequest.RESULT_DOWNLOAD_FILE_WRITE_ERROR:  ["RESULT_DOWNLOAD_FILE_WRITE_ERROR", "the download file could not be written"],
+	HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED:     ["RESULT_REDIRECT_LIMIT_REACHED", "too many HTTP redirects"],
+	HTTPRequest.RESULT_TIMEOUT:                    ["RESULT_TIMEOUT", "the request TIMED OUT waiting for the server to respond"],
+}
 
-	if _active_request != request_state:
+# "RESULT_CANT_CONNECT (2) - could not open a connection ...", or a bare number for a
+# value a future Godot release adds that is not in the table above.
+static func _describe_http_result(result: int) -> String:
+	if _HTTP_RESULT_INFO.has(result):
+		var info: Array = _HTTP_RESULT_INFO[result]
+		return "%s (%d) - %s" % [info[0], result, info[1]]
+	return "UNKNOWN (%d)" % result
+# ── Transport plumbing ──────────────────────────────────────────────────────
+
+# Splits _server_url into the pieces HTTPClient needs. Re-derived on every send
+# because initialize() / a child-app switch can change the URL underneath us.
+func _http_parse_url(url: String) -> void:
+	_http_tls = url.begins_with("https://")
+	var rest := url
+	var scheme_end := url.find("://")
+	if scheme_end >= 0:
+		rest = url.substr(scheme_end + 3)
+	var slash := rest.find("/")
+	var host_port := rest if slash < 0 else rest.substr(0, slash)
+	_http_path = "/" if slash < 0 else rest.substr(slash)
+	_http_port = 443 if _http_tls else 80
+	var colon := host_port.rfind(":")
+	if colon > 0:
+		_http_port = int(host_port.substr(colon + 1))
+		host_port = host_port.substr(0, colon)
+	_http_host = host_port
+
+func _http_reset_connection() -> void:
+	if _http != null:
+		_http.close()
+	_http_phase = _Phase.IDLE
+	_http_has_pending = false
+
+func _http_ensure_connected() -> void:
+	var prev_host := _http_host
+	var prev_port := _http_port
+	_http_parse_url(_server_url)
+	if _http != null and (_http_host != prev_host or _http_port != prev_port):
+		# Pointed somewhere else now - the old socket is no use.
+		_http_reset_connection()
+	if _http == null:
+		_http = HTTPClient.new()
+
+	var st := _http.get_status()
+	if st == HTTPClient.STATUS_CONNECTED:
+		# The whole point: the socket from the previous call is still open, so send now
+		# rather than waiting a frame for the poll to notice.
+		_http_issue_pending()
+		return
+	if st == HTTPClient.STATUS_RESOLVING or st == HTTPClient.STATUS_CONNECTING:
+		_http_phase = _Phase.CONNECTING
+		return
+
+	var tls_options: TLSOptions = TLSOptions.client() if _http_tls else null
+	var err := _http.connect_to_host(_http_host, _http_port, tls_options)
+	if err != OK:
+		_http_fail(HTTPRequest.RESULT_CANT_CONNECT)
+		return
+	_http_phase = _Phase.CONNECTING
+
+func _http_issue_pending() -> void:
+	# request_raw, not request: the body may already be gzipped bytes.
+	var err := _http.request_raw(HTTPClient.METHOD_POST, _http_path, _http_pending_headers, _http_pending_body)
+	_http_has_pending = false
+	if err != OK:
+		_http_fail(HTTPRequest.RESULT_REQUEST_FAILED)
+		return
+	_http_phase = _Phase.REQUESTING
+
+# Drives the connect -> request -> read cycle one frame at a time. Called from
+# _process ahead of update() so a response is still read while the queue is blocked.
+func _poll_http() -> void:
+	if _http == null or _http_phase == _Phase.IDLE:
+		return
+
+	_http.poll()
+	var st := _http.get_status()
+
+	# Map HTTPClient's failure states onto the HTTPRequest.Result codes the rest of the
+	# file already speaks, so _describe_http_result keeps producing the same messages.
+	if st == HTTPClient.STATUS_CANT_RESOLVE:
+		_http_fail(HTTPRequest.RESULT_CANT_RESOLVE)
+		return
+	if st == HTTPClient.STATUS_CANT_CONNECT:
+		_http_fail(HTTPRequest.RESULT_CANT_CONNECT)
+		return
+	if st == HTTPClient.STATUS_TLS_HANDSHAKE_ERROR:
+		_http_fail(HTTPRequest.RESULT_TLS_HANDSHAKE_ERROR)
+		return
+	if st == HTTPClient.STATUS_CONNECTION_ERROR:
+		_http_fail(HTTPRequest.RESULT_CONNECTION_ERROR)
+		return
+
+	match _http_phase:
+		_Phase.CONNECTING:
+			if st == HTTPClient.STATUS_CONNECTED and _http_has_pending:
+				_http_issue_pending()
+			elif st == HTTPClient.STATUS_DISCONNECTED:
+				# Keep-alive socket reaped by the server while idle. Reconnect and retry
+				# the send - this is routine, not an error worth surfacing.
+				if _http_has_pending:
+					_http_ensure_connected()
+				else:
+					_http_phase = _Phase.IDLE
+		_Phase.REQUESTING:
+			if st == HTTPClient.STATUS_BODY:
+				_http_phase = _Phase.READING
+			elif st == HTTPClient.STATUS_CONNECTED or st == HTTPClient.STATUS_DISCONNECTED:
+				# Responded with no body at all.
+				_http_complete()
+		_Phase.READING:
+			if st == HTTPClient.STATUS_BODY:
+				var chunk := _http.read_response_body_chunk()
+				if chunk.size() > 0:
+					_http_body.append_array(chunk)
+			else:
+				# Left BODY - the response is complete. Status is CONNECTED when the
+				# server honoured keep-alive, which is the case we want.
+				_http_complete()
+
+func _http_complete() -> void:
+	var code := _http.get_response_code()
+	var headers := _http.get_response_headers_as_dictionary()
+	var body := _http_body
+	_http_body = PackedByteArray()
+	_http_phase = _Phase.IDLE
+
+	# We never send Accept-Encoding, so a gzipped response should not happen - but
+	# honour one rather than hand JSON.parse a blob of binary if a proxy adds it.
+	for key in headers:
+		if String(key).to_lower() == "content-encoding" and String(headers[key]).to_lower().contains("gzip"):
+			var inflated := body.decompress_dynamic(-1, FileAccess.COMPRESSION_GZIP)
+			if inflated.size() > 0:
+				body = inflated
+			break
+
+	_deliver_response(HTTPRequest.RESULT_SUCCESS, code, body, _http_request_state)
+
+func _http_fail(result: int) -> void:
+	var rs: RequestState = _http_request_state
+	_http_reset_connection()
+	_deliver_response(result, 0, PackedByteArray(), rs)
+func _deliver_response(result: int, response_code: int, body: PackedByteArray, request_state: RequestState) -> void:
+	_http_request_state = null
+
+	if request_state == null or _active_request != request_state:
 		return
 
 	_active_request = null
 
 	if result != HTTPRequest.RESULT_SUCCESS:
-		var error_msg := "Network error: result=%d" % result
+		# No HTTP response at all - the transport itself failed, so nothing here came
+		# from brainCloud. The synthesized bundle below is logged under the same
+		# "#BCC RESPONSE" banner as real traffic, so name the cause plainly or it reads
+		# like a server reply.
+		var error_msg := "Network error: " + _describe_http_result(result)
 		trigger_comms_error(StatusCodes.CLIENT_NETWORK_ERROR, ReasonCodes.CLIENT_NETWORK_ERROR_TIMEOUT, error_msg)
 		return
 
@@ -606,6 +820,7 @@ func _reset_error_cache() -> void:
 	_cached_status_message = "No session"
 
 func reset_communication() -> void:
+	_http_reset_connection()
 	_is_authenticated = false
 	_blocking_queue = false
 	_service_calls_waiting.clear()
@@ -688,7 +903,7 @@ func flush_cached_messages(send_api_error_callbacks: bool) -> void:
 		if send_api_error_callbacks:
 			for sc in calls_to_process:
 				sc.on_failure(StatusCodes.CLIENT_NETWORK_ERROR, ReasonCodes.CLIENT_NETWORK_ERROR_TIMEOUT,
-					"Timeout trying to reach brainCloud server")
+					"Request TIMED OUT: cancelled because an earlier request to brainCloud timed out")
 		_blocking_queue = false
 
 func update_kill_switch(service: String, operation: String, status_code: int) -> void:
