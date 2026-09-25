@@ -5,12 +5,12 @@ extends EditorExportPlugin
 
 ## Drops the native library out of Web exports.
 ##
-## BrainCloudNative is a GDExtension with macOS/Windows/Linux builds only — Web has no
+## BrainCloudNative is a GDExtension with macOS/Windows/Linux builds only, Web has no
 ## wasm32 build and does not need one, because BrainCloudWrapper.init() falls back to
 ## _init_from_project_settings() there (the braincloud/config/*.web settings).
 ##
-## Left in, a Web export carries ~21 MB of desktop binaries that no browser can load —
-## every player downloads a macOS .dylib and a Linux .so for nothing — and Godot logs
+## Left in, a Web export carries ~21 MB of desktop binaries that no browser can load.
+## every player downloads a macOS .dylib and a Linux .so for nothing and Godot logs
 ## "No wasm32 library found for GDExtension" while exporting.
 ##
 ## Doing this from an export plugin rather than telling each project to add an

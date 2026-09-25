@@ -12,5 +12,3 @@ var request_string: String = ""
 var signature: String = ""
 var byte_array: PackedByteArray
 var time_sent: float = 0.0
-# Transport state lives on BrainCloudComms now - one persistent HTTPClient shared by
-# every request, rather than an HTTPRequest node per call. See _poll_http there.

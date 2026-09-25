@@ -110,9 +110,6 @@ func _process(delta: float) -> void:
 	_ws.poll()
 	var ws_state := _ws.get_ready_state()
 
-	# One line per transition. Without it a failed RTT connect reports nothing at all,
-	# and there is no way to tell "nothing answered" (still CONNECTING) from "actively
-	# refused" (CLOSED with a code).
 	if ws_state != _last_logged_ws_state:
 		var elapsed := Time.get_ticks_msec() - _connect_started_ms
 		var extra := ""
@@ -130,8 +127,6 @@ func _process(delta: float) -> void:
 			_send_connect_request()
 		elif _state == _State.HANDSHAKE and _handshake_sent_ms > 0 \
 				and Time.get_ticks_msec() - _handshake_sent_ms >= _HANDSHAKE_TIMEOUT_MS:
-			# Socket is up but the server never answered CONNECT. Fail loudly rather
-			# than sitting here for the rest of the run.
 			var waited := Time.get_ticks_msec() - _handshake_sent_ms
 			print("[RTTComms] RTT CONNECT was not answered within %dms - giving up" % waited)
 			_state = _State.DISCONNECTED
@@ -153,8 +148,6 @@ func _process(delta: float) -> void:
 			if _connection_id.is_empty():
 				var close_code := _ws.get_close_code()
 				var close_reason := _ws.get_close_reason()
-				# Printed as well as emitted - the emitted dict only reaches whoever is
-				# listening, which in a test run is often nobody.
 				print("[RTTComms] closed before handshake completed (code=%d reason='%s')" % [close_code, close_reason])
 				connect_result.emit({"status": 900, "reason_code": 0,
 					"status_message": "RTT WebSocket closed before handshake (ws_code=%d reason=%s)" % [close_code, close_reason]})

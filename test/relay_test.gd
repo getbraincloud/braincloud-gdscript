@@ -82,11 +82,6 @@ func test_connect_invalid_host(bc: BCTest) -> void:
 
 func test_relay_enable_rtt(bc: BCTest) -> void:
 	bc.begin_test("relay_enable_rtt")
-	# Hardcoded, like every other SDK: cpp, java, dart and csharp all pass "READY_START_V2"
-	# as a literal. This used to read a "relayLobbyType" key out of ids.cfg, which made
-	# GDScript the only SDK needing that key - so on any environment whose ids file lacked
-	# it the whole relay suite skipped itself and blamed missing config, even though the
-	# lobby type was configured on the portal exactly as it is everywhere else.
 	_relay_lobby_type = _RELAY_LOBBY_TYPE
 
 	var result := [{}]
