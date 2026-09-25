@@ -74,6 +74,7 @@ const _CREATE_APP_PLATFORMS := [
 	{"id": "UNKNOWN",      "label": "Unknown",         "default": false},
 ]
 
+var _export_plugin: EditorExportPlugin = null
 var _panel_control: Control = null
 
 # Nodes that need to swap when the editor theme changes
@@ -102,6 +103,9 @@ var _app_name_hint: Label = null
 var _user_triggered_login: bool = false  # gates showing error_message until the user clicks Log in/Change App
 
 func _enter_tree() -> void:
+	# Keeps the desktop-only native library out of Web exports - see the plugin's docs.
+	_export_plugin = BrainCloudExportPlugin.new()
+	add_export_plugin(_export_plugin)
 	_register_project_settings()
 	if not ProjectSettings.has_setting("autoload/" + _AUTOLOAD_NAME):
 		add_autoload_singleton(_AUTOLOAD_NAME, _WRAPPER_PATH)
@@ -122,6 +126,9 @@ func _enter_tree() -> void:
 
 
 func _exit_tree() -> void:
+	if _export_plugin != null:
+		remove_export_plugin(_export_plugin)
+		_export_plugin = null
 	var es := get_editor_interface().get_editor_settings()
 	if es.settings_changed.is_connected(_update_panel_theme):
 		es.settings_changed.disconnect(_update_panel_theme)
