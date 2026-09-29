@@ -12,4 +12,3 @@ var request_string: String = ""
 var signature: String = ""
 var byte_array: PackedByteArray
 var time_sent: float = 0.0
-var http_request: HTTPRequest = null

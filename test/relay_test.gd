@@ -82,11 +82,7 @@ func test_connect_invalid_host(bc: BCTest) -> void:
 
 func test_relay_enable_rtt(bc: BCTest) -> void:
 	bc.begin_test("relay_enable_rtt")
-	_relay_lobby_type = bc.ids.get("relayLobbyType", "")
-	if _relay_lobby_type.is_empty():
-		bc.expect_true(false,
-			"relay integration tests skipped — add relayLobbyType=<lobby-type-with-relay> to test/ids.cfg")
-		return
+	_relay_lobby_type = _RELAY_LOBBY_TYPE
 
 	var result := [{}]
 	await bc.bc_wrapper.rtt_service.enable_rtt(
