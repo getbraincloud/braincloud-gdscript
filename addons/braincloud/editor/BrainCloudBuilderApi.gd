@@ -106,8 +106,12 @@ static func get_app_secret(parent: Node, config: Dictionary, team_id: String, ap
 	_call(parent, HTTPClient.METHOD_GET, path, "", config, on_complete)
 
 
-static func get_template_app_list(parent: Node, config: Dictionary, on_complete: Callable) -> void:
-	_call(parent, HTTPClient.METHOD_GET, "/builder/v1/utility/templateapps?liveOnly=true&engine=godot", "", config, on_complete)
+# engine picks that engine's template team; empty = the legacy default list.
+static func get_template_app_list(parent: Node, config: Dictionary, engine: String, on_complete: Callable) -> void:
+	var path := "/builder/v1/utility/templateapps?liveOnly=true"
+	if not engine.is_empty():
+		path += "&engine=" + engine.uri_encode()
+	_call(parent, HTTPClient.METHOD_GET, path, "", config, on_complete)
 
 
 static func create_app(parent: Node, config: Dictionary, team_id: String, app_name: String,

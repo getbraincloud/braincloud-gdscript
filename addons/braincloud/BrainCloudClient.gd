@@ -122,7 +122,20 @@ func _init_services() -> void:
 	rtt_service = BrainCloudRTT.new(self, _rtt_comms)
 	relay_service = BrainCloudRelay.new(self, _relay_comms)
 
-func initialize(secret_key: String, app_id: String, app_version: String, server_url: String = DEFAULT_SERVER_URL) -> void:
+# secret_key_or_profile: app secret (String) or app profile (Callable).
+func initialize(secret_key_or_profile: Variant, app_id: String, app_version: String, server_url: String = DEFAULT_SERVER_URL) -> void:
+	if secret_key_or_profile is Callable:
+		var app_profile: Callable = secret_key_or_profile
+		if server_url.length() == 0 or not app_profile.is_valid() or app_id.length() == 0 or app_version.length() == 0:
+			push_error("BrainCloud initialize error: serverURL, appProfile, appId, or appVersion was empty/invalid")
+			return
+		_app_version = app_version
+		_language_code = OS.get_locale_language()
+		_country_code = OS.get_locale().split("_")[-1] if "_" in OS.get_locale() else "US"
+		_comms.initialize_with_profile(server_url, app_id, app_profile)
+		_initialized = true
+		return
+	var secret_key: String = str(secret_key_or_profile)
 	var error := _initialize_helper(server_url, secret_key, app_id, app_version)
 	if error.length() > 0:
 		push_error("BrainCloud initialize error: " + error)
@@ -130,22 +143,15 @@ func initialize(secret_key: String, app_id: String, app_version: String, server_
 	_comms.initialize(server_url, app_id, secret_key)
 	_initialized = true
 
-func initialize_with_profile(sign_profile: Callable, app_id: String, app_version: String, server_url: String = DEFAULT_SERVER_URL) -> void:
-	if server_url.length() == 0 or not sign_profile.is_valid() or app_id.length() == 0 or app_version.length() == 0:
-		push_error("BrainCloud initialize error: serverURL, signProfile, appId, or appVersion was empty/invalid")
-		return
-	_app_version = app_version
-	_language_code = OS.get_locale_language()
-	_country_code = OS.get_locale().split("_")[-1] if "_" in OS.get_locale() else "US"
-	_comms.initialize_with_profile(server_url, app_id, sign_profile)
-	_initialized = true
-
-func initialize_with_apps(default_app_id: String, app_id_secret_map: Dictionary, app_version: String, server_url: String = DEFAULT_SERVER_URL) -> void:
-	var error := _initialize_helper(server_url, app_id_secret_map.get(default_app_id, ""), default_app_id, app_version)
+# app_id_profile_map: app_id -> app secret (String) or app profile (Callable).
+func initialize_with_apps(default_app_id: String, app_id_profile_map: Dictionary, app_version: String, server_url: String = DEFAULT_SERVER_URL) -> void:
+	var default_profile: Variant = app_id_profile_map.get(default_app_id, "")
+	var has_default: bool = default_profile.is_valid() if default_profile is Callable else not str(default_profile).is_empty()
+	var error := _initialize_helper(server_url, "profile" if has_default else "", default_app_id, app_version)
 	if error.length() > 0:
 		push_error("BrainCloud initialize error: " + error)
 		return
-	_comms.initialize_with_apps(server_url, default_app_id, app_id_secret_map)
+	_comms.initialize_with_apps(server_url, default_app_id, app_id_profile_map)
 	_initialized = true
 
 func initialize_identity(profile_id: String, anonymous_id: String) -> void:
@@ -176,6 +182,10 @@ func get_authenticated() -> bool:
 
 func get_session_id() -> String:
 	return _comms.get_session_id()
+
+## True if a response from an awaited call succeeded (status 200).
+static func is_success(response: Dictionary) -> bool:
+	return response.get("status", 0) == 200
 
 func get_app_id() -> String:
 	return _comms.get_app_id()

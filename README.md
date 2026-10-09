@@ -66,7 +66,7 @@ All authentication calls are `await`-able and return a `Dictionary` with the ful
 ```gdscript
 func _ready() -> void:
     var response = await brainCloud.authenticate_anonymous()
-    if response.status == 200:
+    if BrainCloudWrapper.is_success(response):
         print("Authenticated! Profile ID: ", response.data.profileId)
     else:
         print("Auth failed: ", response.reason_code)
@@ -76,7 +76,7 @@ func _ready() -> void:
 
 ```gdscript
 var response = await brainCloud.authenticate_email_password("user@example.com", "password", true)
-if response.status == 200:
+if BrainCloudWrapper.is_success(response):
     print("Logged in as: ", response.data.profileId)
 ```
 
@@ -125,7 +125,7 @@ Every brainCloud service is available through the singleton. All calls are `awai
 ```gdscript
 # Read a player entity
 var response = await brainCloud.entity_service.get_entities_by_type("profile")
-if response.status == 200:
+if BrainCloudWrapper.is_success(response):
     var entities = response.data.entities
     print("Got %d entities" % entities.size())
 
@@ -151,7 +151,7 @@ brainCloud.rtt_service.register_rtt_lobby_callback(func(data): print("Lobby even
 brainCloud.rtt_service.register_rtt_event_callback(func(data): print("Event: ", data))
 
 var response = await brainCloud.rtt_service.enable_rtt("WEBSOCKET")
-if response.status == 200:
+if BrainCloudWrapper.is_success(response):
     print("RTT connected")
 ```
 

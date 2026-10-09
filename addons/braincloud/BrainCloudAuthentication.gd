@@ -371,6 +371,7 @@ func _build_base_auth_data(external_id: String, auth_token: String, auth_type: S
 		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_FORCE_CREATE: force_create,
 		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_GAME_VERSION: _client_ref.get_app_version(),
 		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_BRAINCLOUD_VERSION: _client_ref.get_braincloud_version(),
+		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_CLIENT_LIB: "gdscript",
 		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_RELEASE_PLATFORM: _client_ref.get_release_platform(),
 		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_COUNTRY_CODE: _client_ref.get_country_code(),
 		OperationParam.AUTHENTICATE_SERVICE_AUTHENTICATE_LANGUAGE_CODE: _client_ref.get_language_code(),

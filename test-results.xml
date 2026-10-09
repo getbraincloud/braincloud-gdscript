@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites time="12.850">
+  <testsuite name="wrapper_test" tests="10" failures="0" errors="0" time="0">
+    <testcase classname="wrapper_test" name="test_init" time="0"/>
+    <testcase classname="wrapper_test" name="test_get_child_app_id_list" time="0"/>
+    <testcase classname="wrapper_test" name="test_authenticate_anonymous" time="0"/>
+    <testcase classname="wrapper_test" name="test_reauthenticate" time="0"/>
+    <testcase classname="wrapper_test" name="test_get_server_version" time="0"/>
+    <testcase classname="wrapper_test" name="test_stored_profile_id" time="0"/>
+    <testcase classname="wrapper_test" name="test_stored_anonymous_id" time="0"/>
+    <testcase classname="wrapper_test" name="test_always_allow_profile_switch" time="0"/>
+    <testcase classname="wrapper_test" name="test_get_app_version" time="0"/>
+    <testcase classname="wrapper_test" name="test_get_braincloud_version" time="0"/>
+  </testsuite>
+  <testsuite name="client_test" tests="4" failures="0" errors="0" time="0">
+    <testcase classname="client_test" name="test_is_authenticated" time="0"/>
+    <testcase classname="client_test" name="test_get_session_id" time="0"/>
+    <testcase classname="client_test" name="test_get_app_id" time="0"/>
+    <testcase classname="client_test" name="test_send_heartbeat" time="0"/>
+  </testsuite>
+  <testsuite name="identities_test" tests="19" failures="0" errors="0" time="0">
+    <testcase classname="identities_test" name="test_get_identities" time="0"/>
+    <testcase classname="identities_test" name="test_get_expired_identities" time="0"/>
+    <testcase classname="identities_test" name="test_attach_detach_universal" time="0"/>
+    <testcase classname="identities_test" name="test_attach_email_identity" time="0"/>
+    <testcase classname="identities_test" name="test_detach_email_identity" time="0"/>
+    <testcase classname="identities_test" name="test_merge_email_identity" time="0"/>
+    <testcase classname="identities_test" name="test_attach_blockchain_identity" time="0"/>
+    <testcase classname="identities_test" name="test_detach_blockchain_identity" time="0"/>
+    <testcase classname="identities_test" name="test_attach_nonlogin_universal_id" time="0"/>
+    <testcase classname="identities_test" name="test_update_universal_id_login" time="0"/>
+    <testcase classname="identities_test" name="test_refresh_identity" time="0"/>
+    <testcase classname="identities_test" name="test_attach_peer_profile" time="0"/>
+    <testcase classname="identities_test" name="test_get_peer_profiles" time="0"/>
+    <testcase classname="identities_test" name="test_detach_peer" time="0"/>
+    <testcase classname="identities_test" name="test_switch_to_singleton_child_profile" time="0"/>
+    <testcase classname="identities_test" name="test_switch_to_parent_profile" time="0"/>
+    <testcase classname="identities_test" name="test_get_child_profiles" time="0"/>
+    <testcase classname="identities_test" name="test_detach_parent" time="0"/>
+    <testcase classname="identities_test" name="test_attach_parent_with_identity" time="0"/>
+  </testsuite>
+</testsuites>

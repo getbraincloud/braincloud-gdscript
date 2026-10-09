@@ -119,8 +119,7 @@ func initialize(server_url: String, app_id: String, secret_key: String) -> void:
 	_blocking_queue = false
 	_initialized = true
 
-# Initializes with a signing profile instead of a plaintext secret -- see
-# BrainCloudNative.resolve_config's second callback argument.
+# Initializes with an app profile (payload bytes -> signature).
 func initialize_with_profile(server_url: String, app_id: String, sign_profile: Callable) -> void:
 	reset_communication()
 	_expected_incoming_packet_id = NO_PACKET_EXPECTED
@@ -139,12 +138,18 @@ func initialize_with_profile(server_url: String, app_id: String, sign_profile: C
 	_blocking_queue = false
 	_initialized = true
 
-func initialize_with_apps(server_url: String, default_app_id: String, app_id_secret_map: Dictionary) -> void:
-	for app_id: String in app_id_secret_map:
-		var secret_key: String = app_id_secret_map[app_id]
-		_app_profiles[app_id] = func(payload: PackedByteArray) -> String:
-			return _calculate_md5_bytes(payload + secret_key.to_utf8_buffer())
-	initialize(server_url, default_app_id, app_id_secret_map.get(default_app_id, ""))
+# app_id_profile_map: app_id -> app secret (String) or app profile (Callable).
+func initialize_with_apps(server_url: String, default_app_id: String, app_id_profile_map: Dictionary) -> void:
+	for app_id in app_id_profile_map:
+		_app_profiles[str(app_id)] = _profile_of(app_id_profile_map[app_id])
+	initialize_with_profile(server_url, default_app_id, _app_profiles.get(default_app_id, Callable()))
+
+func _profile_of(secret_key_or_profile: Variant) -> Callable:
+	if secret_key_or_profile is Callable:
+		return secret_key_or_profile
+	var secret_key := str(secret_key_or_profile)
+	return func(payload: PackedByteArray) -> String:
+		return _calculate_md5_bytes(payload + secret_key.to_utf8_buffer())
 
 func register_event_callback(cb: Callable) -> void:
 	_event_callback = cb

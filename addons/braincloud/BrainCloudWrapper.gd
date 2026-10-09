@@ -22,6 +22,7 @@ var _last_secret_key: String = ""
 var _last_sign_profile: Callable = Callable()
 var _last_app_id: String = ""
 var _last_app_version: String = ""
+var _child_app_ids: Array = []
 # Untyped -- BrainCloudNative isn't available on every export target.
 var _native_secure: Object = null # kept alive so its sign() stays callable
 var wrapper_name: String = ""
@@ -131,50 +132,64 @@ func init() -> void:
 		_init_from_project_settings()
 		return
 	_native_secure = ClassDB.instantiate("BrainCloudNative")
-	_native_secure.resolve_config(_CREDS_PATH, func(app_id: String, sign_profile: Callable):
-		var app_version: String = ProjectSettings.get_setting("braincloud/config/app_version", "1.0.0")
-		var server_url: String  = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
-		initialize_with_profile(sign_profile, app_id, app_version, server_url))
+	var app_version: String = ProjectSettings.get_setting("braincloud/config/app_version", "1.0.0")
+	var server_url: String  = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
+	# Older native builds have no child app support.
+	if not _native_secure.has_method("resolve_configs"):
+		_native_secure.resolve_config(_CREDS_PATH, func(app_id: String, sign_profile: Callable):
+			initialize(sign_profile, app_id, app_version, server_url))
+		return
+	var child_ids: PackedStringArray = _native_secure.resolve_child_ids(_CREDS_PATH)
+	_native_secure.resolve_configs(_CREDS_PATH, func(app_id: String, app_profiles: Dictionary):
+		# Main app first, then children in config order, for get_child_app_id_list().
+		var ordered := {app_id: app_profiles[app_id]}
+		for child_id in child_ids:
+			if app_profiles.has(child_id):
+				ordered[child_id] = app_profiles[child_id]
+		# Child apps configured: load them too so switch_to_child_profile can sign.
+		if ordered.size() > 1:
+			init_with_apps(ordered, app_id, app_version, server_url)
+		else:
+			initialize(app_profiles[app_id], app_id, app_version, server_url))
 
 # Fallback for export targets with no BrainCloudNative extension (currently: Web).
 func _init_from_project_settings() -> void:
 	var app_id: String = ProjectSettings.get_setting("braincloud/config/app_id.web", "")
-	var share: String = ProjectSettings.get_setting("braincloud/config/app_share.web", "")
-	var pad: String = ProjectSettings.get_setting("braincloud/config/app_pad.web", "")
-	if app_id.is_empty() or share.is_empty() or pad.is_empty():
-		push_error("BrainCloudWrapper.init(): set braincloud/config/app_id.web, app_share.web and app_pad.web in Project Settings, or call initialize_with_profile() yourself.")
+	var profile := BrainCloudWebConfig.profile(_web_setting("app_a.web", "app_share.web"), _web_setting("app_b.web", "app_pad.web"))
+	if app_id.is_empty() or not profile.is_valid():
+		push_error("BrainCloudWrapper.init(): save the app in the brainCloud dock (writes braincloud/config/app_id.web, app_a.web, app_b.web), or call initialize() with your own app profile.")
 		return
 	var app_version: String = ProjectSettings.get_setting("braincloud/config/app_version", "1.0.0")
 	var server_url: String  = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
-	var app_secret := BrainCloudWebConfig.decode(share, pad)
-	initialize(app_secret, app_id, app_version, server_url)
-	app_secret = ""
+	initialize(profile, app_id, app_version, server_url)
+
+func _web_setting(key: String, old_key: String) -> String:
+	var value: String = ProjectSettings.get_setting("braincloud/config/" + key, "")
+	return value if not value.is_empty() else str(ProjectSettings.get_setting("braincloud/config/" + old_key, ""))
 
 # Initialize the brainCloud client with the passed in parameters. This version overrides
 # the credentials read from braincloud.cfg/ProjectSettings by init(). Either way, logging
 # and compression are always applied from ProjectSettings (braincloud/debug/enable_logging,
 # braincloud/config/enable_compression) right after the client initializes.
-func initialize(secret_key: String, app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
+# secret_key_or_profile: app secret (String) or app profile (Callable).
+func initialize(secret_key_or_profile: Variant, app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
 	_last_url = url
-	_last_secret_key = secret_key
-	_last_sign_profile = Callable()
+	if secret_key_or_profile is Callable:
+		_last_secret_key = ""
+		_last_sign_profile = secret_key_or_profile
+	else:
+		_last_secret_key = str(secret_key_or_profile)
+		_last_sign_profile = Callable()
 	_last_app_id = app_id
 	_last_app_version = version
-	_client.initialize(secret_key, app_id, version, url)
+	_child_app_ids = []
+	_client.initialize(secret_key_or_profile, app_id, version, url)
 	_client.enable_logging(bool(ProjectSettings.get_setting("braincloud/debug/enable_logging", false)))
 	_client.enable_compression(bool(ProjectSettings.get_setting("braincloud/config/enable_compression", true)))
 
-# Initialize with a signing profile instead of a plaintext secret -- see
-# BrainCloudNative.resolve_config's second callback argument.
-func initialize_with_profile(sign_profile: Callable, app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
-	_last_url = url
-	_last_secret_key = ""
-	_last_sign_profile = sign_profile
-	_last_app_id = app_id
-	_last_app_version = version
-	_client.initialize_with_profile(sign_profile, app_id, version, url)
-	_client.enable_logging(bool(ProjectSettings.get_setting("braincloud/debug/enable_logging", false)))
-	_client.enable_compression(bool(ProjectSettings.get_setting("braincloud/config/enable_compression", true)))
+## True if a response from an awaited call succeeded (status 200).
+static func is_success(response: Dictionary) -> bool:
+	return BrainCloudClient.is_success(response)
 
 func get_app_id() -> String:
 	return _last_app_id
@@ -182,11 +197,26 @@ func get_app_id() -> String:
 func get_app_version() -> String:
 	return _last_app_version
 
-func init_with_apps(app_id_secret_map: Dictionary, default_app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
+# app_id_profile_map: app_id -> app secret (String) or app profile (Callable).
+func init_with_apps(app_id_profile_map: Dictionary, default_app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
 	_last_url = url
+	# Kept so reset_to_default_app can re-initialize the default app.
+	var default_profile: Variant = app_id_profile_map.get(default_app_id, "")
+	_last_sign_profile = default_profile if default_profile is Callable else Callable()
+	_last_secret_key = "" if default_profile is Callable else str(default_profile)
 	_last_app_id = default_app_id
 	_last_app_version = version
-	_client.initialize_with_apps(default_app_id, app_id_secret_map, version, url)
+	_child_app_ids = []
+	for app_id in app_id_profile_map:
+		if str(app_id) != default_app_id:
+			_child_app_ids.append(str(app_id))
+	_client.initialize_with_apps(default_app_id, app_id_profile_map, version, url)
+	_client.enable_logging(bool(ProjectSettings.get_setting("braincloud/debug/enable_logging", false)))
+	_client.enable_compression(bool(ProjectSettings.get_setting("braincloud/config/enable_compression", true)))
+
+## Child app ids from the last init, in config order (index 0 = first child); empty for a single app.
+func get_child_app_id_list() -> Array:
+	return _child_app_ids.duplicate()
 
 func get_stored_profile_id() -> String:
 	return _load_pref(PREFS_PROFILE_ID)
@@ -327,7 +357,7 @@ func reset_to_default_app() -> void:
 	if _last_app_id.is_empty():
 		return
 	if _last_sign_profile.is_valid():
-		_client.initialize_with_profile(_last_sign_profile, _last_app_id, _last_app_version, _last_url)
+		_client.initialize(_last_sign_profile, _last_app_id, _last_app_version, _last_url)
 	else:
 		_client.initialize(_last_secret_key, _last_app_id, _last_app_version, _last_url)
 

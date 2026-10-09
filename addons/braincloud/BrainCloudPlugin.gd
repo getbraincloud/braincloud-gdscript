@@ -9,10 +9,6 @@ const _MENU_ITEM     := "brainCloud"
 # Credentials are stored here — add this path to .gitignore
 const _CREDS_PATH    := "res://addons/braincloud/braincloud.cfg"
 
-# "Create using Template" is suppressed until we can confirm the list of templates
-# available. Flip back on once that's confirmed.
-const _TEMPLATES_ENABLED := false
-
 # ── Brand colours ──────────────────────────────────────────────────────────────
 const _BC_BLUE       := Color("#29a8e0")
 const _BC_DARK       := Color("#0f1923")
@@ -36,10 +32,12 @@ const _SETTINGS := [
 ]
 
 const _LINKS := [
-	{"label": "Portal",        "url": "https://portal.braincloudservers.com/"},
-	{"label": "API Reference", "url": "https://getbraincloud.com/apidocs/apiref/"},
-	{"label": "Docs",          "url": "https://getbraincloud.com/apidocs/"},
-	{"label": "GDScript SDK",  "url": "https://github.com/getbraincloud/braincloud-gdscript"},
+	{"label": "Portal",         "url": "https://portalx.braincloudservers.com/"},
+	{"label": "Learn",          "url": "https://docs.braincloudservers.com/learn/introduction/"},
+	{"label": "API Reference",  "url": "https://docs.braincloudservers.com/api/introduction"},
+	{"label": "Knowledge Base", "url": "https://help.getbraincloud.com/en/"},
+	{"label": "Code Examples",  "url": "https://apps.braincloudservers.com/code_examples/index.html"},
+	{"label": "GDScript SDK",   "url": "https://github.com/getbraincloud/braincloud-gdscript"},
 ]
 
 # Full server-validated OS/auth platform enum (IClientOsPlatformManager on the
@@ -101,6 +99,18 @@ var _app_name_row: Control = null   # read-only App Name — shown once an app i
 var _app_name_edit: LineEdit = null
 var _app_name_hint: Label = null
 var _user_triggered_login: bool = false  # gates showing error_message until the user clicks Log in/Change App
+
+# Child apps of the configured app (saved in braincloud.cfg next to it)
+const _CHILD_PLACEHOLDER := "-- Select child app --"
+const _CHILD_MANUAL      := "Other (enter manually)"
+# Editor-only project metadata (never exported): {parent_app_id: [child_app_id, ...]}
+const _CHILD_META_SECTION := "braincloud"
+const _CHILD_META_KEY     := "child_apps"
+var _children_box: VBoxContainer = null
+var _child_list_box: VBoxContainer = null  # read-only child list under App Credentials
+var _child_rows: Array = []        # [{id, manual, draft_id, draft_value}]; id = saved child app id or ""
+var _child_rows_for: String = ""   # app id the rows belong to
+var _child_error: String = ""
 
 func _enter_tree() -> void:
 	# Keeps the desktop-only native library out of Web exports - see the plugin's docs.
@@ -268,9 +278,18 @@ func _build_panel() -> Control:
 		acct_margin.add_theme_constant_override("margin_" + s, 8)
 	root.add_child(acct_margin)
 
+	var acct_vbox := VBoxContainer.new()
+	acct_vbox.add_theme_constant_override("separation", 8)
+	acct_margin.add_child(acct_vbox)
+
 	_account_container = VBoxContainer.new()
 	_account_container.add_theme_constant_override("separation", 4)
-	acct_margin.add_child(_account_container)
+	acct_vbox.add_child(_account_container)
+
+	_children_box = VBoxContainer.new()
+	_children_box.add_theme_constant_override("separation", 4)
+	_children_box.visible = false
+	acct_vbox.add_child(_children_box)
 
 	root.add_child(_horiz_sep())
 
@@ -423,6 +442,11 @@ func _build_panel() -> Control:
 
 	_cred_fields = fields
 
+	_child_list_box = VBoxContainer.new()
+	_child_list_box.add_theme_constant_override("separation", 2)
+	_child_list_box.visible = false
+	_creds_fields_box.add_child(_child_list_box)
+
 	var log_check := CheckBox.new()
 	log_check.text                  = "Debug Logging"
 	log_check.button_pressed        = bool(ProjectSettings.get_setting(
@@ -522,6 +546,7 @@ func _refresh_account_section() -> void:
 		_logout_btn.visible = _login_flow.is_logged_in()
 
 	_update_synced_app_name()
+	_refresh_child_apps()
 
 
 # Shows the read-only App Name row in App Credentials whenever the current App
@@ -729,7 +754,11 @@ func _build_logged_in_view() -> void:
 	var current_app_id: String = (_cred_fields["app_id"] as LineEdit).text.strip_edges() if _cred_fields.has("app_id") else ""
 	var selected_idx := 0
 	for i in _login_flow.apps.size():
-		app_option.add_item(_login_flow.apps[i]["name"])
+		var listed: Dictionary = _login_flow.apps[i]
+		var parent_label := ""
+		if listed.get("is_parent", false):
+			parent_label = "  Parent: " + listed["level_name"] if not str(listed.get("level_name", "")).is_empty() else "  Parent"
+		app_option.add_item(listed["name"] + parent_label)
 		if not _show_create_app and _login_flow.apps[i]["id"] == current_app_id and not current_app_id.is_empty():
 			selected_idx = i
 	if app_option.item_count > 0:
@@ -776,22 +805,20 @@ func _build_create_app_fields() -> Control:
 	_new_app_name_edit.text_changed.connect(on_name_changed)
 	box.add_child(_new_app_name_edit)
 
-	# "Create using Template" is suppressed until we can confirm the list of templates
-	# available — see _build_template_picker(). Re-enable by restoring this checkbox.
-	if _TEMPLATES_ENABLED:
-		var template_check := CheckBox.new()
-		template_check.text           = "Create using Template"
-		template_check.button_pressed = _create_with_template
-		template_check.add_theme_font_size_override("font_size", 11)
-		var on_template_toggled := func(pressed: bool):
-			_create_with_template = pressed
-			if pressed:
-				_login_flow.download_template_list()
-			_refresh_account_section()
-		template_check.toggled.connect(on_template_toggled)
-		box.add_child(template_check)
+	var template_check := CheckBox.new()
+	template_check.text           = "Create using Tutorial template"
+	template_check.button_pressed = _create_with_template
+	template_check.add_theme_font_size_override("font_size", 11)
+	var on_template_toggled := func(pressed: bool):
+		_create_with_template = pressed
+		if pressed:
+			_login_flow.download_template_list()
+		_refresh_account_section()
+	template_check.toggled.connect(on_template_toggled)
+	box.add_child(template_check)
 
-	if _TEMPLATES_ENABLED and _create_with_template:
+	# Template replaces the platform list.
+	if _create_with_template:
 		box.add_child(_build_template_picker())
 	else:
 		box.add_child(_build_platform_checks())
@@ -842,10 +869,16 @@ func _build_template_picker() -> Control:
 	vbox.add_child(lbl)
 
 	if _login_flow.templates.is_empty():
+		var row_empty := HBoxContainer.new()
+		row_empty.add_theme_constant_override("separation", 4)
 		var loading := Label.new()
-		loading.text = "Loading templates…"
+		loading.text = "Loading templates…" if _login_flow.templates_loading else "No templates are available yet."
+		loading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		loading.add_theme_font_size_override("font_size", 10)
-		vbox.add_child(loading)
+		row_empty.add_child(loading)
+		if not _login_flow.templates_loading:
+			row_empty.add_child(_refresh_btn(_login_flow.download_template_list.bind(true)))
+		vbox.add_child(row_empty)
 		return vbox
 
 	var row := HBoxContainer.new()
@@ -855,14 +888,17 @@ func _build_template_picker() -> Control:
 	var option := OptionButton.new()
 	option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	option.add_theme_font_size_override("font_size", 11)
+	var selected_idx := -1
 	for i in _login_flow.templates.size():
 		var t: Dictionary = _login_flow.templates[i]
 		option.add_item(t["name"])
 		if t["id"] == _selected_template_id:
-			option.select(i)
-	if option.selected == -1 and option.item_count > 0:
-		option.select(0)
+			selected_idx = i
+	# Default to the first; add_item auto-selects it without updating the id.
+	if selected_idx == -1:
+		selected_idx = 0
 		_selected_template_id = _login_flow.templates[0]["id"]
+	option.select(selected_idx)
 	var on_template_selected := func(idx: int):
 		_selected_template_id = _login_flow.templates[idx]["id"]
 	option.item_selected.connect(on_template_selected)
@@ -918,6 +954,10 @@ func _on_create_app_pressed() -> void:
 		if bool(_new_app_platform_state.get(p["id"], p["default"])):
 			platforms.append(p["id"])
 	var template_id := _selected_template_id if _create_with_template else ""
+	if _create_with_template and template_id.is_empty():
+		_login_flow.error_message = "Select a template, or uncheck Create using Tutorial template."
+		_refresh_account_section()
+		return
 	_login_flow.create_app(_new_app_name, platforms, template_id)
 
 
@@ -925,10 +965,324 @@ func _on_app_selected(app_id: String, app_secret: String) -> void:
 	(_cred_fields["app_id"] as LineEdit).text     = app_id
 	(_cred_fields["app_secret"] as LineEdit).text = app_secret
 	_on_save(_cred_fields, _log_check, _status_label)
+	_recall_child_apps(app_id)
 	# Rebuild so the App dropdown actually shows the newly created/selected app instead of
 	# lingering on "-- Create New App --" with no visible feedback that anything happened.
 	_show_create_app = false
 	_refresh_account_section()
+
+
+# ── Child apps ─────────────────────────────────────────────────────────────────
+
+# Untyped so an older native build without the child app methods still loads the dock.
+func _native_call(method: String, args: Array = []) -> Variant:
+	var native: Object = BrainCloudNative.new()
+	return native.callv(method, args) if native.has_method(method) else null
+
+
+func _configured_app_id() -> String:
+	var resolved: Dictionary = BrainCloudNative.new().resolve_app_name(_CREDS_PATH)
+	return str(resolved.get("app_id", ""))
+
+
+func _saved_child_ids() -> PackedStringArray:
+	var ids = _native_call("resolve_child_ids", [_CREDS_PATH])
+	return ids if ids is PackedStringArray else PackedStringArray()
+
+
+func _refresh_child_apps() -> void:
+	if not is_instance_valid(_children_box) or _login_flow == null:
+		return
+	for child in _children_box.get_children():
+		_children_box.remove_child(child)
+		child.queue_free()
+
+	_refresh_child_list()
+
+	var parent_id := _configured_app_id()
+	if parent_id != _child_rows_for:
+		_child_rows = []
+		_child_rows_for = parent_id
+		_child_error = ""
+
+	# Saved children first (in file order), then rows still being filled in.
+	var saved := _saved_child_ids()
+	var rows: Array = []
+	for id in saved:
+		var row := _child_row(id)
+		if row.is_empty():
+			row = {"id": id, "manual": not _login_flow.is_child_of(id, parent_id), "draft_id": id, "draft_value": ""}
+		rows.append(row)
+	for row in _child_rows:
+		if str(row["id"]).is_empty():
+			rows.append(row)
+	_child_rows = rows
+
+	var parent: Dictionary = _login_flow.find_app(parent_id)
+	var is_parent: bool = parent.get("is_parent", false)
+	# Editing needs a login; logged out, the list under App Credentials is enough.
+	_children_box.visible = _login_flow.is_logged_in() and not parent_id.is_empty() \
+		and (not parent.is_empty() or not _child_rows.is_empty())
+	if not _children_box.visible:
+		return
+
+	# Set in the portal; the plugin's Builder access can't change it.
+	var flag := CheckBox.new()
+	flag.text           = "Parent app (set in the brainCloud portal)"
+	flag.button_pressed = is_parent
+	flag.disabled       = true
+	flag.add_theme_font_size_override("font_size", 11)
+	_children_box.add_child(flag)
+
+	# Hidden for non-parents unless the config already has child apps.
+	if not is_parent and _child_rows.is_empty():
+		return
+
+	var children: Array = _login_flow.child_apps_of(parent_id)
+
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 4)
+	_children_box.add_child(header)
+	var title := Label.new()
+	title.text                  = "Child Apps"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_font_size_override("font_size", 11)
+	header.add_child(title)
+	var add_btn := Button.new()
+	add_btn.text                = "+"
+	add_btn.tooltip_text        = "Add a child app to the project."
+	add_btn.flat                = true
+	add_btn.focus_mode          = Control.FOCUS_NONE
+	add_btn.custom_minimum_size = Vector2(28, 0)
+	add_btn.pressed.connect(func():
+		_child_rows.append({"id": "", "manual": children.is_empty(), "draft_id": "", "draft_value": ""})
+		_refresh_child_apps())
+	header.add_child(add_btn)
+
+	if is_parent and children.is_empty():
+		var hint := Label.new()
+		hint.text          = "No child apps visible. Link children in the brainCloud portal (or ask a team admin)."
+		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		hint.add_theme_font_size_override("font_size", 10)
+		_children_box.add_child(hint)
+
+	if not _child_error.is_empty():
+		_children_box.add_child(_error_lbl(_child_error))
+
+	for row in _child_rows:
+		_children_box.add_child(_build_child_row(row, children, saved.find(row["id"])))
+
+
+# Read-only "[index] id Name" lines, in get_child_app_id_list() order.
+func _refresh_child_list() -> void:
+	if not is_instance_valid(_child_list_box):
+		return
+	for child in _child_list_box.get_children():
+		_child_list_box.remove_child(child)
+		child.queue_free()
+	var ids := _saved_child_ids()
+	_child_list_box.visible = not ids.is_empty()
+	if ids.is_empty():
+		return
+
+	var title := Label.new()
+	title.text = "Child Apps"
+	title.add_theme_font_size_override("font_size", 11)
+	_child_list_box.add_child(title)
+	for i in ids.size():
+		var app_name := str(_login_flow.find_app(ids[i]).get("name", ""))
+		var line := Label.new()
+		line.text = "[%d] %s" % [i, ids[i]] + ("  " + app_name if not app_name.is_empty() else "")
+		line.add_theme_font_size_override("font_size", 11)
+		_child_list_box.add_child(line)
+
+
+func _child_row(id: String) -> Dictionary:
+	for row in _child_rows:
+		if row["id"] == id:
+			return row
+	return {}
+
+
+# index: position in the config (= get_child_app_id_list() order), -1 while pending.
+func _build_child_row(row: Dictionary, children: Array, index: int) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+
+	# Children not already used by another row.
+	var options: Array = []
+	for child in children:
+		var used := false
+		for other in _child_rows:
+			if not is_same(other, row) and other["id"] == child["id"]:
+				used = true
+				break
+		if not used:
+			options.append(child)
+
+	var pick := OptionButton.new()
+	pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pick.add_theme_font_size_override("font_size", 11)
+	pick.add_item(_CHILD_PLACEHOLDER)
+	var selected := 0
+	for i in options.size():
+		pick.add_item("%s (%s)" % [options[i]["name"], options[i]["id"]])
+		if not row["manual"] and options[i]["id"] == row["id"]:
+			selected = i + 1
+	pick.add_item(_CHILD_MANUAL)
+	var manual_index := pick.item_count - 1
+	if row["manual"] or (selected == 0 and not str(row["id"]).is_empty()):
+		row["manual"] = true
+		selected = manual_index
+	pick.select(selected)
+	pick.item_selected.connect(func(idx: int):
+		_child_error = ""
+		if idx == manual_index:
+			row["manual"] = true
+			row["draft_id"] = row["id"]
+			_refresh_child_apps()
+		elif idx == 0:
+			row["manual"] = false
+			_remove_child_app(row, false)
+		else:
+			_pick_child_app(row, options[idx - 1]["id"]))
+
+	var remove := Button.new()
+	remove.text       = "Delete"
+	remove.flat       = true
+	remove.focus_mode = Control.FOCUS_NONE
+	remove.add_theme_font_size_override("font_size", 10)
+	remove.pressed.connect(func():
+		_child_error = ""
+		_remove_child_app(row, true))
+
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 4)
+	if index >= 0:
+		var index_lbl := Label.new()
+		index_lbl.text         = "[%d]" % index
+		index_lbl.tooltip_text = "Index in get_child_app_id_list()"
+		index_lbl.mouse_filter = Control.MOUSE_FILTER_PASS
+		index_lbl.add_theme_font_size_override("font_size", 11)
+		line.add_child(index_lbl)
+	line.add_child(pick)
+	line.add_child(remove)
+	box.add_child(line)
+
+	if row["manual"]:
+		var id_edit := LineEdit.new()
+		id_edit.placeholder_text      = "Child App ID"
+		id_edit.text                  = row["draft_id"]
+		id_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		id_edit.add_theme_font_size_override("font_size", 11)
+		id_edit.text_changed.connect(func(text: String): row["draft_id"] = text)
+		box.add_child(id_edit)
+
+		var value_edit := LineEdit.new()
+		value_edit.placeholder_text      = "Saved (enter to replace)" if not str(row["id"]).is_empty() else "Child App Secret"
+		value_edit.text                  = row["draft_value"]
+		value_edit.secret                = true
+		value_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		value_edit.add_theme_font_size_override("font_size", 11)
+		value_edit.text_changed.connect(func(text: String): row["draft_value"] = text)
+		box.add_child(value_edit)
+
+		var save := Button.new()
+		save.text                  = "Save Child App"
+		save.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		save.add_theme_font_size_override("font_size", 11)
+		save.pressed.connect(func(): _save_manual_child_app(row))
+		box.add_child(save)
+
+	return box
+
+
+# Fetches the child's profile into braincloud.cfg.
+func _pick_child_app(row: Dictionary, child_id: String) -> void:
+	var parent_id := _child_rows_for
+	_login_flow.fetch_app_secret(child_id, func(secret: String):
+		if _configured_app_id() != parent_id:
+			return  # switched apps while fetching
+		if not str(row["id"]).is_empty() and row["id"] != child_id:
+			_native_call("remove_child_config", [_CREDS_PATH, row["id"]])
+		if _native_call("add_child_config", [_CREDS_PATH, child_id, secret]) == true:
+			row["id"] = child_id
+			row["manual"] = false
+		else:
+			_child_error = "Failed to save child app."
+		_remember_child_apps()
+		_refresh_child_apps())
+
+
+func _save_manual_child_app(row: Dictionary) -> void:
+	var id := str(row["draft_id"]).strip_edges()
+	var value := str(row["draft_value"]).strip_edges()
+	_child_error = ""
+	if id.is_empty() or (value.is_empty() and id != row["id"]):
+		_child_error = "Child App ID and Secret are required."
+	elif id == _child_rows_for:
+		_child_error = "A child app can't be the configured app."
+	elif not _child_row(id).is_empty() and not is_same(_child_row(id), row):
+		_child_error = "That child app is already added."
+	elif value.is_empty():
+		pass  # same id, nothing to replace
+	else:
+		if not str(row["id"]).is_empty() and row["id"] != id:
+			_native_call("remove_child_config", [_CREDS_PATH, row["id"]])
+		if _native_call("add_child_config", [_CREDS_PATH, id, value]) == true:
+			row["id"] = id
+			row["draft_value"] = ""
+		else:
+			_child_error = "Failed to save child app."
+		_remember_child_apps()
+	_refresh_child_apps()
+
+
+func _remove_child_app(row: Dictionary, drop_row: bool) -> void:
+	if not str(row["id"]).is_empty():
+		_native_call("remove_child_config", [_CREDS_PATH, row["id"]])
+	row["id"] = ""
+	row["draft_id"] = ""
+	row["draft_value"] = ""
+	if drop_row:
+		_child_rows = _child_rows.filter(func(other): return not is_same(other, row))
+	_remember_child_apps()
+	_refresh_child_apps()
+
+
+# Manual rows aren't remembered; their profile can't be fetched again.
+func _remember_child_apps() -> void:
+	var parent_id := _child_rows_for
+	if parent_id.is_empty() or _login_flow.apps.is_empty():
+		return
+	var ids: Array = []
+	for id in _saved_child_ids():
+		if _login_flow.is_child_of(id, parent_id):
+			ids.append(id)
+	var es := get_editor_interface().get_editor_settings()
+	var remembered: Dictionary = es.get_project_metadata(_CHILD_META_SECTION, _CHILD_META_KEY, {})
+	if ids.is_empty():
+		remembered.erase(parent_id)
+	else:
+		remembered[parent_id] = ids
+	es.set_project_metadata(_CHILD_META_SECTION, _CHILD_META_KEY, remembered)
+
+
+# Rebuilds a reselected parent's children and fetches their profiles again.
+func _recall_child_apps(parent_id: String) -> void:
+	if not _saved_child_ids().is_empty():
+		return
+	var es := get_editor_interface().get_editor_settings()
+	var remembered: Dictionary = es.get_project_metadata(_CHILD_META_SECTION, _CHILD_META_KEY, {})
+	for id in remembered.get(parent_id, []):
+		var child_id := str(id)
+		if not _login_flow.is_child_of(child_id, parent_id):
+			continue
+		_login_flow.fetch_app_secret(child_id, func(secret: String):
+			if _configured_app_id() != parent_id:
+				return
+			_native_call("add_child_config", [_CREDS_PATH, child_id, secret])
+			_refresh_child_apps())
 
 
 # ── Style helpers ──────────────────────────────────────────────────────────────
@@ -1049,8 +1403,11 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 
 	var web_settings := BrainCloudWebConfig.encode(app_secret)
 	ProjectSettings.set_setting("braincloud/config/app_id.web", app_id)
-	ProjectSettings.set_setting("braincloud/config/app_share.web", web_settings["share"])
-	ProjectSettings.set_setting("braincloud/config/app_pad.web", web_settings["pad"])
+	ProjectSettings.set_setting("braincloud/config/app_a.web", web_settings["a"])
+	ProjectSettings.set_setting("braincloud/config/app_b.web", web_settings["b"])
+	for old_key in ["braincloud/config/app_share.web", "braincloud/config/app_pad.web"]:
+		if ProjectSettings.has_setting(old_key):
+			ProjectSettings.set_setting(old_key, null)
 
 	ProjectSettings.set_setting("braincloud/config/server_url",    server_url)
 	ProjectSettings.set_setting("braincloud/config/app_version",   app_ver if not app_ver.is_empty() else "1.0.0")
@@ -1060,6 +1417,7 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 	status.add_theme_color_override("font_color", Color("#44bb66"))
 	status.text = "✓  Saved"
 	_update_stale_secret_warning()
+	_refresh_child_apps()
 
 
 func _ensure_gitignore() -> void:

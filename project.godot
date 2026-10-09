@@ -24,6 +24,12 @@ config/icon="res://icon.svg"
 BrainCloud="*res://addons/braincloud/BrainCloudWrapper.gd"
 brainCloud="*res://addons/braincloud/BrainCloudWrapper.gd"
 
+[braincloud]
+
+config/app_id.web=""
+config/app_share.web="
+config/app_pad.web=""
+
 [dotnet]
 
 project/assembly_name="BrainCloud GDScript SDK"
