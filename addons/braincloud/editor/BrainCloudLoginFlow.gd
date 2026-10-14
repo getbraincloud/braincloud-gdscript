@@ -9,7 +9,7 @@ extends RefCounted
 # picker logic.
 
 signal state_changed
-signal app_selected(app_id: String, app_secret: String)
+signal app_selected(app_id: String, app_value: String)
 
 enum State { LOGGED_OUT, LOGGING_IN, LOGGED_IN }
 
@@ -394,26 +394,26 @@ func download_template_list(force: bool = false, engine: String = _TEMPLATE_ENGI
 func select_app(app_id: String) -> void:
 	if app_id.is_empty():
 		return  # "-- Create New App --" sentinel — the dock shows the create-app UI instead
-	fetch_app_secret(app_id, func(secret: String): app_selected.emit(app_id, secret))
+	fetch_app_value(app_id, func(value: String): app_selected.emit(app_id, value))
 
 
-# Calls on_done(secret) once fetched; errors land in error_message.
-func fetch_app_secret(app_id: String, on_done: Callable) -> void:
+# Calls on_done(value) once fetched; errors land in error_message.
+func fetch_app_value(app_id: String, on_done: Callable) -> void:
 	var config := _builder_config()
 	var on_complete := func(success: bool, _code: int, _text: String, json):
 		if not success or not (json is Dictionary):
-			error_message = "Failed to fetch app secret."
+			error_message = "Failed to fetch app credentials."
 			state_changed.emit()
 			return
 		var response = json.get("response")
 		var app = response.get("app") if response is Dictionary else null
-		var secret := str(app.get("appSecret", "")) if app is Dictionary else ""
-		if secret.is_empty():
-			error_message = "App secret not found in response."
+		var value := str(app.get("appSecret", "")) if app is Dictionary else ""
+		if value.is_empty():
+			error_message = "App credentials not found in response."
 			state_changed.emit()
 			return
-		on_done.call(secret)
-	BrainCloudBuilderApi.get_app_secret(_http_parent, config, team_id, app_id, on_complete)
+		on_done.call(value)
+	BrainCloudBuilderApi.get_app_credentials(_http_parent, config, team_id, app_id, on_complete)
 
 
 func find_app(app_id: String) -> Dictionary:

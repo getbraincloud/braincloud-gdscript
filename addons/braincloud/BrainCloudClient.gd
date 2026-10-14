@@ -154,6 +154,10 @@ func initialize_with_apps(default_app_id: String, app_id_profile_map: Dictionary
 	_comms.initialize_with_apps(server_url, default_app_id, app_id_profile_map)
 	_initialized = true
 
+# Back to an app this client was initialized with (e.g. the parent after a child switch).
+func reset_to_app(app_id: String) -> bool:
+	return _comms.reset_to_app(app_id)
+
 func initialize_identity(profile_id: String, anonymous_id: String) -> void:
 	authentication_service.initialize(profile_id, anonymous_id)
 

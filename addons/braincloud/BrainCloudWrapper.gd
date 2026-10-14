@@ -18,8 +18,6 @@ var always_allow_profile_switch: bool:
 	set(v): _always_allow_profile_switch = v
 
 var _last_url: String = ""
-var _last_secret_key: String = ""
-var _last_sign_profile: Callable = Callable()
 var _last_app_id: String = ""
 var _last_app_version: String = ""
 var _child_app_ids: Array = []
@@ -174,12 +172,6 @@ func _web_setting(key: String, old_key: String) -> String:
 # secret_key_or_profile: app secret (String) or app profile (Callable).
 func initialize(secret_key_or_profile: Variant, app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
 	_last_url = url
-	if secret_key_or_profile is Callable:
-		_last_secret_key = ""
-		_last_sign_profile = secret_key_or_profile
-	else:
-		_last_secret_key = str(secret_key_or_profile)
-		_last_sign_profile = Callable()
 	_last_app_id = app_id
 	_last_app_version = version
 	_child_app_ids = []
@@ -200,10 +192,6 @@ func get_app_version() -> String:
 # app_id_profile_map: app_id -> app secret (String) or app profile (Callable).
 func init_with_apps(app_id_profile_map: Dictionary, default_app_id: String, version: String, url: String = BrainCloudClient.DEFAULT_SERVER_URL) -> void:
 	_last_url = url
-	# Kept so reset_to_default_app can re-initialize the default app.
-	var default_profile: Variant = app_id_profile_map.get(default_app_id, "")
-	_last_sign_profile = default_profile if default_profile is Callable else Callable()
-	_last_secret_key = "" if default_profile is Callable else str(default_profile)
 	_last_app_id = default_app_id
 	_last_app_version = version
 	_child_app_ids = []
@@ -356,10 +344,7 @@ func logout(forget_user: bool = false) -> Dictionary:
 func reset_to_default_app() -> void:
 	if _last_app_id.is_empty():
 		return
-	if _last_sign_profile.is_valid():
-		_client.initialize(_last_sign_profile, _last_app_id, _last_app_version, _last_url)
-	else:
-		_client.initialize(_last_secret_key, _last_app_id, _last_app_version, _last_url)
+	_client.reset_to_app(_last_app_id)
 
 func _on_authenticated(response: Dictionary) -> void:
 	var data: Dictionary = response.get("data", {})

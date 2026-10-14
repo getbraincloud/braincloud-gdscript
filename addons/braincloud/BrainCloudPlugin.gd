@@ -1200,12 +1200,12 @@ func _build_child_row(row: Dictionary, children: Array, index: int) -> Control:
 # Fetches the child's profile into braincloud.cfg.
 func _pick_child_app(row: Dictionary, child_id: String) -> void:
 	var parent_id := _child_rows_for
-	_login_flow.fetch_app_secret(child_id, func(secret: String):
+	_login_flow.fetch_app_value(child_id, func(value: String):
 		if _configured_app_id() != parent_id:
 			return  # switched apps while fetching
 		if not str(row["id"]).is_empty() and row["id"] != child_id:
 			_native_call("remove_child_config", [_CREDS_PATH, row["id"]])
-		if _native_call("add_child_config", [_CREDS_PATH, child_id, secret]) == true:
+		if _native_call("add_child_config", [_CREDS_PATH, child_id, value]) == true:
 			row["id"] = child_id
 			row["manual"] = false
 		else:
@@ -1278,10 +1278,10 @@ func _recall_child_apps(parent_id: String) -> void:
 		var child_id := str(id)
 		if not _login_flow.is_child_of(child_id, parent_id):
 			continue
-		_login_flow.fetch_app_secret(child_id, func(secret: String):
+		_login_flow.fetch_app_value(child_id, func(value: String):
 			if _configured_app_id() != parent_id:
 				return
-			_native_call("add_child_config", [_CREDS_PATH, child_id, secret])
+			_native_call("add_child_config", [_CREDS_PATH, child_id, value])
 			_refresh_child_apps())
 
 

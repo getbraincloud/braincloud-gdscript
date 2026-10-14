@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites time="12.850">
+<testsuites time="14.145">
   <testsuite name="wrapper_test" tests="10" failures="0" errors="0" time="0">
     <testcase classname="wrapper_test" name="test_init" time="0"/>
     <testcase classname="wrapper_test" name="test_get_child_app_id_list" time="0"/>

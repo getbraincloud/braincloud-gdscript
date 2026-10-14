@@ -101,23 +101,7 @@ func get_received_packet_id() -> int:
 	return _received_packet_id_checker
 
 func initialize(server_url: String, app_id: String, secret_key: String) -> void:
-	reset_communication()
-	_expected_incoming_packet_id = NO_PACKET_EXPECTED
-	_server_url = server_url
-
-	var suffix := "/dispatcherv2"
-	var format_url := server_url
-	if format_url.ends_with(suffix):
-		format_url = format_url.substr(0, format_url.length() - suffix.length())
-	while format_url.length() > 0 and format_url.ends_with("/"):
-		format_url = format_url.substr(0, format_url.length() - 1)
-
-	_upload_url = format_url + "/uploader"
-	_app_profiles[app_id] = func(payload: PackedByteArray) -> String:
-		return _calculate_md5_bytes(payload + secret_key.to_utf8_buffer())
-	_app_id = app_id
-	_blocking_queue = false
-	_initialized = true
+	initialize_with_profile(server_url, app_id, _profile_of(secret_key))
 
 # Initializes with an app profile (payload bytes -> signature).
 func initialize_with_profile(server_url: String, app_id: String, sign_profile: Callable) -> void:
@@ -147,9 +131,32 @@ func initialize_with_apps(server_url: String, default_app_id: String, app_id_pro
 func _profile_of(secret_key_or_profile: Variant) -> Callable:
 	if secret_key_or_profile is Callable:
 		return secret_key_or_profile
-	var secret_key := str(secret_key_or_profile)
+	var v := str(secret_key_or_profile).to_utf8_buffer()
+	var a := Crypto.new().generate_random_bytes(v.size())
+	var b := PackedByteArray()
+	b.resize(v.size())
+	for i in v.size():
+		b[i] = v[i] ^ a[i]
+	v.fill(0)
 	return func(payload: PackedByteArray) -> String:
-		return _calculate_md5_bytes(payload + secret_key.to_utf8_buffer())
+		var t := PackedByteArray()
+		t.resize(a.size())
+		for i in a.size():
+			t[i] = a[i] ^ b[i]
+		var signature := _calculate_md5_bytes(payload + t)
+		t.fill(0)
+		return signature
+
+# Back to an app this client was initialized with; false if it has no profile for it.
+func reset_to_app(app_id: String) -> bool:
+	if not _app_profiles.has(app_id):
+		return false
+	reset_communication()
+	_expected_incoming_packet_id = NO_PACKET_EXPECTED
+	_app_id = app_id
+	_blocking_queue = false
+	_initialized = true
+	return true
 
 func register_event_callback(cb: Callable) -> void:
 	_event_callback = cb
