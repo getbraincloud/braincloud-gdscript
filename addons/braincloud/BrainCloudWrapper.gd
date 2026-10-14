@@ -7,6 +7,7 @@ const PREFS_ANONYMOUS_ID := "brainCloud.anonymousId"
 const PREFS_AUTHENTICATION_TYPE := "brainCloud.authenticationType"
 const PREFS_LAST_PACKET_ID := "brainCloud.lastPacketId"
 const _CREDS_PATH := "res://addons/braincloud/braincloud.cfg"
+const _WEB_CONFIG_PATH := "res://addons/braincloud/braincloud_web.cfg"
 
 var _client: BrainCloudClient = null
 var braincloud_client: BrainCloudClient:
@@ -151,11 +152,16 @@ func init() -> void:
 			initialize(app_profiles[app_id], app_id, app_version, server_url))
 
 # Fallback for export targets with no BrainCloudNative extension (currently: Web).
+# The export plugin writes _WEB_CONFIG_PATH into Web exports; older projects keep the
+# braincloud/config/*.web settings.
 func _init_from_project_settings() -> void:
-	var app_id: String = ProjectSettings.get_setting("braincloud/config/app_id.web", "")
-	var profile := BrainCloudWebConfig.profile(_web_setting("app_a.web", "app_share.web"), _web_setting("app_b.web", "app_pad.web"))
+	var web := ConfigFile.new()
+	var from_export := web.load(_WEB_CONFIG_PATH) == OK
+	var app_id: String = web.get_value("app", "app_id", "") if from_export else ProjectSettings.get_setting("braincloud/config/app_id.web", "")
+	var profile := BrainCloudWebConfig.profile(web.get_value("app", "a", ""), web.get_value("app", "b", "")) if from_export \
+		else BrainCloudWebConfig.profile(_web_setting("app_a.web", "app_share.web"), _web_setting("app_b.web", "app_pad.web"))
 	if app_id.is_empty() or not profile.is_valid():
-		push_error("BrainCloudWrapper.init(): save the app in the brainCloud dock (writes braincloud/config/app_id.web, app_a.web, app_b.web), or call initialize() with your own app profile.")
+		push_error("BrainCloudWrapper.init(): save the app in the brainCloud dock before exporting, or call initialize() with your own app profile.")
 		return
 	var app_version: String = ProjectSettings.get_setting("braincloud/config/app_version", "1.0.0")
 	var server_url: String  = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)

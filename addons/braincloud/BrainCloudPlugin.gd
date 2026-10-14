@@ -335,7 +335,12 @@ func _build_panel() -> Control:
 		if use_default:
 			server_edit.text = _DEFAULT_SERVER_URL
 	apply_default_server.call(use_default_check.button_pressed)
-	use_default_check.toggled.connect(apply_default_server)
+	# The URL is saved as soon as it changes, not only on Save.
+	use_default_check.toggled.connect(func(use_default: bool):
+		apply_default_server.call(use_default)
+		_save_server_url(server_edit.text))
+	server_edit.text_submitted.connect(_save_server_url)
+	server_edit.focus_exited.connect(func(): _save_server_url(server_edit.text))
 
 	cvbox.add_child(_horiz_sep())
 
@@ -1401,13 +1406,8 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 		return
 	_ensure_gitignore()
 
-	var web_settings := BrainCloudWebConfig.encode(app_secret)
-	ProjectSettings.set_setting("braincloud/config/app_id.web", app_id)
-	ProjectSettings.set_setting("braincloud/config/app_a.web", web_settings["a"])
-	ProjectSettings.set_setting("braincloud/config/app_b.web", web_settings["b"])
-	for old_key in ["braincloud/config/app_share.web", "braincloud/config/app_pad.web"]:
-		if ProjectSettings.has_setting(old_key):
-			ProjectSettings.set_setting(old_key, null)
+	# Web exports get their config from the export plugin; project.godot is committed.
+	_clear_web_settings()
 
 	ProjectSettings.set_setting("braincloud/config/server_url",    server_url)
 	ProjectSettings.set_setting("braincloud/config/app_version",   app_ver if not app_ver.is_empty() else "1.0.0")
@@ -1418,6 +1418,22 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 	status.text = "✓  Saved"
 	_update_stale_secret_warning()
 	_refresh_child_apps()
+
+
+func _save_server_url(url: String) -> void:
+	url = url.strip_edges()
+	if url.is_empty() or url == _read_setting("server_url"):
+		return
+	ProjectSettings.set_setting("braincloud/config/server_url", url)
+	ProjectSettings.save()
+
+
+# Removes app values older dock versions wrote into project.godot for Web.
+func _clear_web_settings() -> void:
+	for key in ["app_id.web", "app_a.web", "app_b.web", "app_share.web", "app_pad.web",
+			"app_secret_share.web", "app_secret_pad.web"]:
+		if ProjectSettings.has_setting("braincloud/config/" + key):
+			ProjectSettings.set_setting("braincloud/config/" + key, null)
 
 
 func _ensure_gitignore() -> void:
