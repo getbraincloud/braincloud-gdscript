@@ -6,6 +6,10 @@ func run(bc: BCTest) -> void:
 	await test_refresh_promotions(bc)
 	await test_verify_purchase_bad(bc)
 	await test_start_purchase(bc)
+	await test_get_store_info(bc)
+	await test_get_store_info_fail(bc)
+	await test_get_user_token(bc)
+	await test_get_user_token_fail(bc)
 
 func test_get_eligible_promotions(bc: BCTest) -> void:
 	bc.begin_test("test_get_eligible_promotions")
@@ -37,3 +41,25 @@ func test_start_purchase(bc: BCTest) -> void:
 		status == StatusCodes.OK or status == StatusCodes.BAD_REQUEST,
 		"Expected 200 or 400 for start_purchase, got %d" % status
 	)
+
+func test_get_store_info(bc: BCTest) -> void:
+	bc.begin_test("test_get_store_info")
+	var response := await bc.bc_wrapper.app_store_service.get_store_info("xsolla")
+	bc.expect_status_ok(response)
+
+func test_get_store_info_fail(bc: BCTest) -> void:
+	bc.begin_test("test_get_store_info_fail")
+	var response := await bc.bc_wrapper.app_store_service.get_store_info("_invalid_store_id_")
+	bc.expect_status(response, StatusCodes.BAD_REQUEST)
+	bc.expect_eq(response.get("reason_code", 0), ReasonCodes.INVALID_STORE_ID, "reason_code")
+
+func test_get_user_token(bc: BCTest) -> void:
+	bc.begin_test("test_get_user_token")
+	var response := await bc.bc_wrapper.app_store_service.get_user_token("xsolla")
+	bc.expect_status_ok(response)
+
+func test_get_user_token_fail(bc: BCTest) -> void:
+	bc.begin_test("test_get_user_token_fail")
+	var response := await bc.bc_wrapper.app_store_service.get_user_token("_invalid_store_id_")
+	bc.expect_status(response, StatusCodes.BAD_REQUEST)
+	bc.expect_eq(response.get("reason_code", 0), ReasonCodes.INVALID_STORE_ID, "reason_code")

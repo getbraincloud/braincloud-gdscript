@@ -3,6 +3,7 @@ extends RefCounted
 
 func run(bc: BCTest) -> void:
 	await test_init(bc)
+	await test_get_child_app_id_list(bc)
 	await test_authenticate_anonymous(bc)
 	await test_reauthenticate(bc)
 	await test_get_server_version(bc)
@@ -15,6 +16,12 @@ func run(bc: BCTest) -> void:
 func test_init(bc: BCTest) -> void:
 	bc.begin_test("test_init")
 	bc.expect_true(bc.bc_wrapper.is_initialized(), "bc_wrapper should be initialized")
+
+func test_get_child_app_id_list(bc: BCTest) -> void:
+	bc.begin_test("test_get_child_app_id_list")
+	var child_app_id: String = bc.ids.get("childAppId", "")
+	var expected: Array = [child_app_id] if not child_app_id.is_empty() and not str(bc.ids.get("childSecret", "")).is_empty() else []
+	bc.expect_eq(bc.bc_wrapper.get_child_app_id_list(), expected, "child app ids from init")
 
 func test_authenticate_anonymous(bc: BCTest) -> void:
 	bc.begin_test("test_authenticate_anonymous")

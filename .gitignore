@@ -13,3 +13,7 @@
 # Test credentials (never commit)
 test/ids.cfg
 test/output.txt
+addons/braincloud/braincloud.cfg
+
+# Test run output
+test-results.xml

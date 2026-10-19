@@ -66,6 +66,24 @@ func finalize_purchase(store_id: String, transaction_id: String, transaction_dat
 	}
 	return await _send(ServiceOperation.APP_STORE_FINALIZE_PURCHASE, data)
 
+## Returns the store's client-side configuration for the given store.
+##
+## Service Name - AppStore[br]
+## Service Operation - GetStoreInfo
+##
+## @param store_id The store platform (e.g. "xsolla")
+func get_store_info(store_id: String) -> Dictionary:
+	return await _send(ServiceOperation.APP_STORE_GET_STORE_INFO, {OperationParam.APP_STORE_STORE_ID: store_id})
+
+## Returns a store user token (JWT) for the current user, generated server-side.
+##
+## Service Name - AppStore[br]
+## Service Operation - GetUserToken
+##
+## @param store_id The store platform (e.g. "xsolla")
+func get_user_token(store_id: String) -> Dictionary:
+	return await _send(ServiceOperation.APP_STORE_GET_USER_TOKEN, {OperationParam.APP_STORE_STORE_ID: store_id})
+
 func _send(operation: String, data: Dictionary) -> Dictionary:
 	var sc := ServerCall.new(ServiceName.APP_STORE, operation, data)
 	_client_ref.comms.add_to_queue(sc)
