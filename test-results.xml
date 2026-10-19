@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites time="5.513">
+  <testsuite name="appstore_test" tests="8" failures="0" errors="0" time="0">
+    <testcase classname="appstore_test" name="test_get_eligible_promotions" time="0"/>
+    <testcase classname="appstore_test" name="test_refresh_promotions" time="0"/>
+    <testcase classname="appstore_test" name="test_verify_purchase_bad" time="0"/>
+    <testcase classname="appstore_test" name="test_start_purchase" time="0"/>
+    <testcase classname="appstore_test" name="test_get_store_info" time="0"/>
+    <testcase classname="appstore_test" name="test_get_store_info_fail" time="0"/>
+    <testcase classname="appstore_test" name="test_get_user_token" time="0"/>
+    <testcase classname="appstore_test" name="test_get_user_token_fail" time="0"/>
+  </testsuite>
+</testsuites>
