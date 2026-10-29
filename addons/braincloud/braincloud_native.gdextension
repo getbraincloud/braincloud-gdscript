@@ -15,7 +15,3 @@ android.debug.arm64 = "res://addons/braincloud/bin/libBrainCloudNative.android.a
 android.release.arm64 = "res://addons/braincloud/bin/libBrainCloudNative.android.arm64.so"
 android.debug.x86_64 = "res://addons/braincloud/bin/libBrainCloudNative.android.x86_64.so"
 android.release.x86_64 = "res://addons/braincloud/bin/libBrainCloudNative.android.x86_64.so"
-
-[dependencies]
-windows.debug.x86_64 = { "res://addons/braincloud/bin/libcrypto-3-x64.dll": "" }
-windows.release.x86_64 = { "res://addons/braincloud/bin/libcrypto-3-x64.dll": "" }
