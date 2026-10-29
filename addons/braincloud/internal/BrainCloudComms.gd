@@ -215,7 +215,8 @@ func add_to_queue(call: ServerCall) -> void:
 	if _initialized:
 		_service_calls_waiting.append(call)
 	else:
-		call.on_failure(StatusCodes.CLIENT_NETWORK_ERROR, ReasonCodes.CLIENT_NOT_INITIALIZED, "Client not initialized")
+		# Deferred: the caller hasn't reached `await response_received` yet, so an immediate emit is lost and it hangs.
+		call.on_failure.call_deferred(StatusCodes.CLIENT_NETWORK_ERROR, ReasonCodes.CLIENT_NOT_INITIALIZED, "Client not initialized")
 
 func insert_end_of_bundle_marker() -> void:
 	add_to_queue(EndOfBundleMarker.new())

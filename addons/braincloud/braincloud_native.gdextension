@@ -9,3 +9,13 @@ windows.debug.x86_64 = "res://addons/braincloud/bin/BrainCloudNative.dll"
 windows.release.x86_64 = "res://addons/braincloud/bin/BrainCloudNative.dll"
 linux.debug.x86_64 = "res://addons/braincloud/bin/BrainCloudNative.so"
 linux.release.x86_64 = "res://addons/braincloud/bin/BrainCloudNative.so"
+ios.debug = "res://addons/braincloud/bin/BrainCloudNative.xcframework"
+ios.release = "res://addons/braincloud/bin/BrainCloudNative.xcframework"
+android.debug.arm64 = "res://addons/braincloud/bin/libBrainCloudNative.android.arm64.so"
+android.release.arm64 = "res://addons/braincloud/bin/libBrainCloudNative.android.arm64.so"
+android.debug.x86_64 = "res://addons/braincloud/bin/libBrainCloudNative.android.x86_64.so"
+android.release.x86_64 = "res://addons/braincloud/bin/libBrainCloudNative.android.x86_64.so"
+
+[dependencies]
+windows.debug.x86_64 = { "res://addons/braincloud/bin/libcrypto-3-x64.dll": "" }
+windows.release.x86_64 = { "res://addons/braincloud/bin/libcrypto-3-x64.dll": "" }
