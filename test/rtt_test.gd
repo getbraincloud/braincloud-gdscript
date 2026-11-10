@@ -79,7 +79,8 @@ func test_rtt_lobby_event_received(bc: BCTest) -> void:
 	await bc.bc_wrapper.lobby_service.find_or_create_lobby("MATCH_UNRANKED", 0, 1, algo, {}, {}, true, {}, "all", [])
 
 	var timed_out := [false]
-	var timer := bc.get_tree().create_timer(10.0)
+	# Matchmaking can take tens of seconds on the shared envs; other SDKs wait 60s too.
+	var timer := bc.get_tree().create_timer(60.0)
 	timer.timeout.connect(func(): timed_out[0] = true)
 	while lobby_event[0].is_empty() and not timed_out[0]:
 		await bc.get_tree().process_frame
