@@ -23,37 +23,26 @@ func _ready() -> void:
 	user_b = TestUser.new("UserB", rand_id)
 	user_c = TestUser.new("UserC", rand_id)
 
-func load_ids(path: String = "res://test/ids.cfg") -> bool:
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		push_error("BCTest: Cannot open ids file: %s" % path)
-		return false
-	while not file.eof_reached():
-		var line := file.get_line().strip_edges()
-		if line.is_empty() or line.begins_with("#"):
-			continue
-		var kv := line.split("=", true, 1)
-		if kv.size() == 2:
-			ids[kv[0].strip_edges()] = kv[1].strip_edges()
-	file.close()
-	return true
+# Fixed values the suites expect on the test app; appId/childAppId come from the plugin's config.
+const TEST_VALUES := {
+	"parentLevelName": "Master",
+	"peerName": "peerapp",
+	"stableEmail": "braincloudunittest@gmail.com",
+	"leaderboardId": "testLeaderboard",
+	"channelId": "valid",
+	"customEntityType": "DartTestCustomEntity",
+}
 
-func setup_bc(server_url: String = "") -> bool:
-	if not load_ids():
-		return false
-
-	var url: String = server_url if server_url.length() > 0 else ids.get("serverUrl", BrainCloudClient.DEFAULT_SERVER_URL)
-	var app_id: String = ids.get("appId", "")
-	var secret: String = ids.get("secret", "")
-	var version: String = ids.get("version", "")
-	var child_app_id: String = ids.get("childAppId", "")
-	var child_secret: String = ids.get("childSecret", "")
+func setup_bc() -> bool:
 	bc_wrapper.wrapper_name = "GDScriptTest"
-	if child_app_id.length() > 0 and child_secret.length() > 0:
-		var secret_map := {app_id: secret, child_app_id: child_secret}
-		bc_wrapper.init_with_apps(secret_map, app_id, version, url)
-	else:
-		bc_wrapper.initialize(secret, app_id, version, url)
+	bc_wrapper.init()
+	if not bc_wrapper.is_initialized():
+		push_error("BCTest: no readable app config. Run `node bccm test braincloud-gdscript` to restore it from data/.")
+		return false
+	ids = TEST_VALUES.duplicate()
+	ids["appId"] = bc_wrapper.get_app_id()
+	var children := bc_wrapper.get_child_app_id_list()
+	ids["childAppId"] = str(children[0]) if not children.is_empty() else ""
 	bc_wrapper.braincloud_client.enable_logging(true)
 
 	bc_wrapper.braincloud_client.authentication_service.clear_saved_profile_id()

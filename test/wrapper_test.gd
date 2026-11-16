@@ -19,9 +19,7 @@ func test_init(bc: BCTest) -> void:
 
 func test_get_child_app_id_list(bc: BCTest) -> void:
 	bc.begin_test("test_get_child_app_id_list")
-	var child_app_id: String = bc.ids.get("childAppId", "")
-	var expected: Array = [child_app_id] if not child_app_id.is_empty() and not str(bc.ids.get("childSecret", "")).is_empty() else []
-	bc.expect_eq(bc.bc_wrapper.get_child_app_id_list(), expected, "child app ids from init")
+	bc.expect_eq(bc.bc_wrapper.get_child_app_id_list().size(), 1, "the config's child app is registered by init()")
 
 func test_authenticate_anonymous(bc: BCTest) -> void:
 	bc.begin_test("test_authenticate_anonymous")

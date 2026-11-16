@@ -17,3 +17,7 @@ addons/braincloud/braincloud.cfg
 
 # Test run output
 test-results.xml
+
+# brainCloud app config (generated)
+.braincloud/
+/.braincloud/build_profile.gd

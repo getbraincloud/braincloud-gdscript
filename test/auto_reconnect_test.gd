@@ -43,16 +43,11 @@ func test_auto_reconnect_enabled_with_callback(bc: BCTest) -> void:
 	bc.expect_true(not session_id.is_empty(), "main wrapper should have an active session")
 
 	# Spin up a second wrapper (different user) to end the main user's session.
-	var url: String = bc.ids.get("serverUrl", BrainCloudClient.DEFAULT_SERVER_URL)
-	var app_id: String = bc.ids.get("appId", "")
-	var secret: String = bc.ids.get("secret", "")
-	var version: String = bc.ids.get("version", "")
-
 	var other := BrainCloudWrapper.new()
 	other.name = "BCWrapperOther"
 	other.wrapper_name = "GDScriptTestOther"
 	bc.add_child(other)
-	other.initialize(secret, app_id, version, url)
+	other.init()
 	other.braincloud_client.enable_logging(true)
 	other.braincloud_client.authentication_service.clear_saved_profile_id()
 	var other_auth := await other.authenticate_universal(bc.user_b.name, bc.user_b.password, true)

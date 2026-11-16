@@ -21,7 +21,7 @@ func run(bc: BCTest) -> void:
 	await test_send_when_not_connected(bc)
 	await test_disconnect_when_not_connected(bc)
 	await test_connect_invalid_host(bc)
-	# Integration tests — require relayLobbyType in ids.cfg pointing to a lobby
+	# Integration tests — require a lobby
 	# type that has a relay server configured (everyReadyMinNum=1 recommended so
 	# a single ready player triggers ROOM_READY without waiting for others).
 	await test_relay_enable_rtt(bc)

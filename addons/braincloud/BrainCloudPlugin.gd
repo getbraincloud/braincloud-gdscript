@@ -6,7 +6,7 @@ const _AUTOLOAD_NAME := "brainCloud"
 const _WRAPPER_PATH  := "res://addons/braincloud/BrainCloudWrapper.gd"
 const _MENU_ITEM     := "brainCloud"
 
-# Credentials are stored here — add this path to .gitignore
+# Encoded app config; only reads with the project's build value (BrainCloudBuildProfile).
 const _CREDS_PATH    := "res://addons/braincloud/braincloud.cfg"
 
 # ── Brand colours ──────────────────────────────────────────────────────────────
@@ -77,8 +77,14 @@ var _panel_control: Control = null
 
 # Nodes that need to swap when the editor theme changes
 var _logo_png:   TextureRect = null  # swaps between dark-bg and light-bg variant
-var _warn_label: Label       = null  # brand orange — cannot inherit from theme
 var _stale_secret_label: Label = null  # brand orange — shown when app_id is set but the saved secret can't be read
+
+# Build Tuning row, shown once a config exists
+var _tuning_box: VBoxContainer = null
+var _tuning_status: Label = null
+var _tuning_edit: LineEdit = null
+var _tuning_eye: Button = null
+var _tuning_confirm: ConfirmationDialog = null
 
 # brainCloud account (OAuth + Builder API) login/team/app flow
 var _login_flow: BrainCloudLoginFlow = null
@@ -111,6 +117,7 @@ var _child_list_box: VBoxContainer = null  # read-only child list under App Cred
 var _child_rows: Array = []        # [{id, manual, draft_id, draft_value}]; id = saved child app id or ""
 var _child_rows_for: String = ""   # app id the rows belong to
 var _child_error: String = ""
+var _reselecting: bool = false  # app picked again from the account list: children are fetched again
 
 func _enter_tree() -> void:
 	# Keeps the desktop-only native library out of Web exports - see the plugin's docs.
@@ -216,9 +223,6 @@ func _update_panel_theme() -> void:
 		_logo_png.texture = _try_load_logo(_LOGO_PATH_LIGHT if _is_light else _LOGO_PATH)
 
 	# Warning colour is brand orange — cannot be left to the theme
-	if is_instance_valid(_warn_label):
-		_warn_label.add_theme_color_override("font_color",
-			_BC_WARN_LIGHT if _is_light else _BC_WARN_DARK)
 	if is_instance_valid(_stale_secret_label):
 		_stale_secret_label.add_theme_color_override("font_color",
 			_BC_WARN_LIGHT if _is_light else _BC_WARN_DARK)
@@ -478,19 +482,14 @@ func _build_panel() -> Control:
 	save_btn.pressed.connect(_on_save.bind(fields, log_check, status))
 	_creds_fields_box.add_child(save_btn)
 
-	_warn_label = Label.new()
-	_warn_label.text          = "⚠  braincloud.cfg is gitignored"
-	_warn_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_warn_label.add_theme_font_size_override("font_size", 11)
-	_creds_fields_box.add_child(_warn_label)
-
 	_stale_secret_label = Label.new()
-	_stale_secret_label.text          = ("⚠  Saved app secret is in an outdated format and can't be read. " +
-		"Log in above and reselect this app to update it.")
+	_stale_secret_label.text          = "⚠  " + _UNREADABLE
 	_stale_secret_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_stale_secret_label.add_theme_font_size_override("font_size", 11)
 	_creds_fields_box.add_child(_stale_secret_label)
 	_update_stale_secret_warning()
+
+	_build_tuning_row(_creds_fields_box)
 
 	# Below App Credentials (outside the collapsible box, so it stays visible even
 	# when that section is collapsed) — hidden until logged in, see _refresh_account_section().
@@ -552,6 +551,7 @@ func _refresh_account_section() -> void:
 
 	_update_synced_app_name()
 	_refresh_child_apps()
+	_refresh_tuning()
 
 
 # Shows the read-only App Name row in App Credentials whenever the current App
@@ -969,7 +969,9 @@ func _on_create_app_pressed() -> void:
 func _on_app_selected(app_id: String, app_secret: String) -> void:
 	(_cred_fields["app_id"] as LineEdit).text     = app_id
 	(_cred_fields["app_secret"] as LineEdit).text = app_secret
+	_reselecting = true
 	_on_save(_cred_fields, _log_check, _status_label)
+	_reselecting = false
 	_recall_child_apps(app_id)
 	# Rebuild so the App dropdown actually shows the newly created/selected app instead of
 	# lingering on "-- Create New App --" with no visible feedback that anything happened.
@@ -1210,7 +1212,9 @@ func _pick_child_app(row: Dictionary, child_id: String) -> void:
 			return  # switched apps while fetching
 		if not str(row["id"]).is_empty() and row["id"] != child_id:
 			_native_call("remove_child_config", [_CREDS_PATH, row["id"]])
-		if _native_call("add_child_config", [_CREDS_PATH, child_id, value]) == true:
+		if not _tuning_reads_config():
+			_child_error = _UNREADABLE
+		elif _native_call("add_child_config", [_CREDS_PATH, BrainCloudBuildProfile.read(), child_id, value]) == true:
 			row["id"] = child_id
 			row["manual"] = false
 		else:
@@ -1231,10 +1235,12 @@ func _save_manual_child_app(row: Dictionary) -> void:
 		_child_error = "That child app is already added."
 	elif value.is_empty():
 		pass  # same id, nothing to replace
+	elif not _tuning_reads_config():
+		_child_error = _UNREADABLE
 	else:
 		if not str(row["id"]).is_empty() and row["id"] != id:
 			_native_call("remove_child_config", [_CREDS_PATH, row["id"]])
-		if _native_call("add_child_config", [_CREDS_PATH, id, value]) == true:
+		if _native_call("add_child_config", [_CREDS_PATH, BrainCloudBuildProfile.read(), id, value]) == true:
 			row["id"] = id
 			row["draft_value"] = ""
 		else:
@@ -1286,7 +1292,7 @@ func _recall_child_apps(parent_id: String) -> void:
 		_login_flow.fetch_app_value(child_id, func(value: String):
 			if _configured_app_id() != parent_id:
 				return
-			_native_call("add_child_config", [_CREDS_PATH, child_id, value])
+			_native_call("add_child_config", [_CREDS_PATH, BrainCloudBuildProfile.read(), child_id, value])
 			_refresh_child_apps())
 
 
@@ -1385,7 +1391,7 @@ func _read_setting(key: String) -> String:
 
 
 func _read_stored_secret() -> String:
-	var resolved: Dictionary = BrainCloudNative.new().resolve_config_sync(_CREDS_PATH)
+	var resolved: Dictionary = BrainCloudNative.new().resolve_config_sync(_CREDS_PATH, BrainCloudBuildProfile.read())
 	return str(resolved.get("secret", ""))
 
 
@@ -1400,11 +1406,11 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 		status.text = "App ID, Secret and URL are required."
 		return
 
-	if not BrainCloudNative.new().prepare_config(_CREDS_PATH, app_id, app_secret):
+	var error := _write_config(app_id, app_secret)
+	if not error.is_empty():
 		status.add_theme_color_override("font_color", Color("#dd5555"))
-		status.text = "Failed to save credentials."
+		status.text = error
 		return
-	_ensure_gitignore()
 
 	# Web exports get their config from the export plugin; project.godot is committed.
 	_clear_web_settings()
@@ -1418,6 +1424,7 @@ func _on_save(fields: Dictionary, log_check: CheckBox, status: Label) -> void:
 	status.text = "✓  Saved"
 	_update_stale_secret_warning()
 	_refresh_child_apps()
+	_refresh_tuning()
 
 
 func _save_server_url(url: String) -> void:
@@ -1436,36 +1443,234 @@ func _clear_web_settings() -> void:
 			ProjectSettings.set_setting("braincloud/config/" + key, null)
 
 
+# Keeps the config and build value out of source control.
 func _ensure_gitignore() -> void:
 	var path    := "res://.gitignore"
-	var entry   := "addons/braincloud/braincloud.cfg"
-	var content := ""
-
-	if FileAccess.file_exists(path):
-		var f := FileAccess.open(path, FileAccess.READ)
-		if f:
-			content = f.get_as_text()
-
-	if entry in content:
+	var content := FileAccess.get_file_as_string(path) if FileAccess.file_exists(path) else ""
+	var lines   := Array(content.split("\n")).map(func(l): return str(l).strip_edges())
+	var missing := []
+	for file in [_CREDS_PATH, BrainCloudBuildProfile.PATH]:
+		var rel: String = file.trim_prefix("res://")
+		var name: String = rel.get_file()
+		if not (rel in lines or ("/" + rel) in lines or name in lines or ("**/" + name) in lines):
+			missing.append("/" + rel)
+	if missing.is_empty():
 		return
-
 	if content.length() > 0 and not content.ends_with("\n"):
 		content += "\n"
-	content += entry + "\n"
-
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f:
-		f.store_string(content)
+	content += "# brainCloud app config (generated)\n" + "\n".join(PackedStringArray(missing)) + "\n"
+	_store_text(path, content)
 
 
-# An app_id with no readable secret looks configured but can't authenticate -- most
-# often because it was saved before this addon's current encoding scheme (that path
-# is a clean break, not an auto-migration; see BrainCloudNative.resolve_config).
-# Surface that explicitly instead of leaving the App Secret field blank with no
-# explanation of why a previously-working project stopped authenticating.
+# An app id with no readable secret can't authenticate; say so instead of a blank field.
 func _update_stale_secret_warning() -> void:
 	if not is_instance_valid(_stale_secret_label):
 		return
 	var app_id     := (_cred_fields["app_id"]     as LineEdit).text.strip_edges()
 	var app_secret := (_cred_fields["app_secret"] as LineEdit).text.strip_edges()
 	_stale_secret_label.visible = not app_id.is_empty() and app_secret.is_empty()
+
+
+# ── Build Tuning ───────────────────────────────────────────────────────────────
+
+const _UNREADABLE := "Saved values can't be read. Select the app again."
+
+
+# True when the project's value reads the saved config.
+func _tuning_reads_config() -> bool:
+	var value := BrainCloudBuildProfile.read()
+	var ok := not value.is_empty() and not BrainCloudNative.new().resolve_config_sync(_CREDS_PATH, value).is_empty()
+	value.fill(0)
+	return ok
+
+
+# Writes the build profile (when new or changed) then braincloud.cfg; puts the profile
+# back if the config write fails. Returns an error message, or "" on success.
+func _write_config(app_id: String, secret: String, override := PackedByteArray()) -> String:
+	var current := BrainCloudBuildProfile.read()
+	var existing := not current.is_empty()
+	var tuning := override if not override.is_empty() else (current if existing else BrainCloudBuildProfile.new_value())
+	var replace := not existing or tuning != current
+	# Keeping saved child apps needs the value they were written with; reselecting fetches them anew.
+	if override.is_empty() and not _reselecting and _configured_app_id() == app_id \
+			and not _saved_child_ids().is_empty() and not _tuning_reads_config():
+		return _UNREADABLE
+
+	var path := BrainCloudBuildProfile.PATH
+	var previous := FileAccess.get_file_as_string(path) if existing else ""
+	if replace and not BrainCloudBuildProfile.write(tuning):
+		return "Couldn't save the build tuning value."
+	var wrote: bool = BrainCloudNative.new().prepare_config(_CREDS_PATH, tuning, app_id, secret)
+	tuning.fill(0)
+	if not wrote:
+		if replace and existing:
+			_store_text(path, previous)
+		elif replace:
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+		return "Failed to save credentials."
+	_save_config_server(_current_server_url())
+	_ensure_gitignore()
+	return ""
+
+
+# The server goes in the config with its app, so the config always talks to the server it was made for.
+func _save_config_server(url: String) -> void:
+	var cfg := ConfigFile.new()
+	if url.is_empty() or cfg.load(_CREDS_PATH) != OK:
+		return
+	cfg.set_value("credentials", "server_url", url)
+	cfg.save(_CREDS_PATH)
+
+
+func _store_text(path: String, text: String) -> bool:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_string(text)
+	return true
+
+
+func _build_tuning_row(parent: Control) -> void:
+	_tuning_box = VBoxContainer.new()
+	_tuning_box.add_theme_constant_override("separation", 2)
+	_tuning_box.visible = false
+	parent.add_child(_tuning_box)
+	_tuning_box.add_child(_horiz_sep())
+
+	var title := Label.new()
+	title.text = "Build Tuning"
+	title.add_theme_font_size_override("font_size", 11)
+	_tuning_box.add_child(title)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	_tuning_box.add_child(row)
+
+	_tuning_edit = LineEdit.new()
+	_tuning_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tuning_edit.add_theme_font_size_override("font_size", 11)
+	_tuning_edit.text_submitted.connect(_on_tuning_submitted)
+	row.add_child(_tuning_edit)
+
+	var theme := get_editor_interface().get_editor_theme()
+	var regen := Button.new()
+	regen.icon         = theme.get_icon("Reload", "EditorIcons")
+	regen.tooltip_text = "Regenerate"
+	regen.flat         = true
+	regen.focus_mode   = Control.FOCUS_NONE
+	regen.pressed.connect(_confirm_regenerate)
+	row.add_child(regen)
+
+	_tuning_eye = Button.new()
+	_tuning_eye.flat       = true
+	_tuning_eye.focus_mode = Control.FOCUS_NONE
+	_tuning_eye.pressed.connect(func():
+		if _tuning_edit.editable:
+			_mask_tuning()
+		else:
+			_reveal_tuning())
+	row.add_child(_tuning_eye)
+
+	_tuning_status = Label.new()
+	_tuning_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_tuning_status.add_theme_font_size_override("font_size", 10)
+	_tuning_status.visible = false
+	_tuning_box.add_child(_tuning_status)
+
+	_mask_tuning()
+	_refresh_tuning()
+
+
+# Masked: no value in the field, just placeholder dots.
+func _mask_tuning() -> void:
+	_tuning_edit.text             = ""
+	_tuning_edit.secret           = false
+	_tuning_edit.editable         = false
+	_tuning_edit.placeholder_text = "••••••••••••••••"
+	_tuning_eye.icon         = get_editor_interface().get_editor_theme().get_icon("GuiVisibilityVisible", "EditorIcons")
+	_tuning_eye.tooltip_text = "Show"
+
+
+func _reveal_tuning() -> void:
+	_tuning_edit.text             = BrainCloudBuildProfile.hex(BrainCloudBuildProfile.read())
+	_tuning_edit.editable         = true
+	_tuning_edit.placeholder_text = "64 hex characters, Enter to apply"
+	_tuning_eye.icon         = get_editor_interface().get_editor_theme().get_icon("GuiVisibilityHidden", "EditorIcons")
+	_tuning_eye.tooltip_text = "Hide"
+	_tuning_edit.grab_focus()
+
+
+func _on_tuning_submitted(text: String) -> void:
+	if not _tuning_edit.editable:
+		return
+	var value := BrainCloudBuildProfile.parse_hex(text)
+	if value.is_empty():
+		_tuning_message("Enter 64 hex characters.")
+		return
+	if value == BrainCloudBuildProfile.read():
+		_mask_tuning()
+		return
+	_mask_tuning()
+	_retune(value)
+
+
+func _refresh_tuning() -> void:
+	if not is_instance_valid(_tuning_box):
+		return
+	_tuning_box.visible = FileAccess.file_exists(_CREDS_PATH)
+	if not _tuning_box.visible:
+		return
+	var value := BrainCloudBuildProfile.read()
+	if value.is_empty():
+		_tuning_message("Not set. Select the app again, or enter a value.")
+	elif BrainCloudNative.new().resolve_config_sync(_CREDS_PATH, value).is_empty():
+		_tuning_message("Doesn't match this config. Enter the value it was made with, or select the app again.")
+	else:
+		_tuning_message("")
+	value.fill(0)
+
+
+# Shown only when something's wrong.
+func _tuning_message(text: String) -> void:
+	if not is_instance_valid(_tuning_status):
+		return
+	_tuning_status.text = text
+	_tuning_status.visible = not text.is_empty()
+	_tuning_status.add_theme_color_override("font_color", Color("#dd5555"))
+
+
+func _confirm_regenerate() -> void:
+	if _tuning_confirm == null:
+		_tuning_confirm = ConfirmationDialog.new()
+		_tuning_confirm.dialog_text = "Builds made with the current value will no longer read the new config. Continue?"
+		_tuning_confirm.confirmed.connect(func(): _retune(BrainCloudBuildProfile.new_value()))
+		get_editor_interface().get_base_control().add_child(_tuning_confirm)
+	_tuning_confirm.popup_centered()
+
+
+# Re-encodes the saved app (and fetches its child apps again) under `value`.
+func _retune(value: PackedByteArray) -> void:
+	var app_id := _configured_app_id()
+	var secret := (_cred_fields["app_secret"] as LineEdit).text.strip_edges() if _cred_fields.has("app_secret") else ""
+	if app_id.is_empty() or secret.is_empty():
+		_tuning_message("Select the app above (or enter its App Secret) first.")
+		return
+	var children := _saved_child_ids()
+	if not children.is_empty():
+		if _login_flow == null or not _login_flow.is_logged_in():
+			_tuning_message("Log in to change the tuning value.")
+			return
+		for id in children:
+			if not _login_flow.is_child_of(id, app_id):
+				_tuning_message("Remove manually entered child apps, change the value, then add them back.")
+				return
+		_remember_child_apps()
+	var error := _write_config(app_id, secret, value)
+	value.fill(0)
+	if not error.is_empty():
+		_tuning_message(error)
+		return
+	_recall_child_apps(app_id)
+	_update_stale_secret_warning()
+	_refresh_child_apps()
+	_refresh_tuning()

@@ -8,6 +8,7 @@ const PREFS_AUTHENTICATION_TYPE := "brainCloud.authenticationType"
 const PREFS_LAST_PACKET_ID := "brainCloud.lastPacketId"
 const _CREDS_PATH := "res://addons/braincloud/braincloud.cfg"
 const _WEB_CONFIG_PATH := "res://addons/braincloud/braincloud_web.cfg"
+const _CONFIG_ERROR := "BrainCloudWrapper.init(): the brainCloud app config can't be read. Select the app in the brainCloud dock again, or call initialize() with your own app profile."
 
 var _client: BrainCloudClient = null
 var braincloud_client: BrainCloudClient:
@@ -24,6 +25,9 @@ var _last_app_version: String = ""
 var _child_app_ids: Array = []
 # Untyped -- BrainCloudNative isn't available on every export target.
 var _native_secure: Object = null # kept alive so its sign() stays callable
+const _PROFILE_PATH := "res://.braincloud/build_profile.gd"
+const _PROFILE_META := "_bc_build"
+static var _main_scene: PackedScene = null # kept so the main scene's own load reuses it
 var wrapper_name: String = ""
 
 # Expose services through wrapper
@@ -132,12 +136,7 @@ func init() -> void:
 		return
 	_native_secure = ClassDB.instantiate("BrainCloudNative")
 	var app_version: String = ProjectSettings.get_setting("braincloud/config/app_version", "1.0.0")
-	var server_url: String  = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
-	# Older native builds have no child app support.
-	if not _native_secure.has_method("resolve_configs"):
-		_native_secure.resolve_config(_CREDS_PATH, func(app_id: String, sign_profile: Callable):
-			initialize(sign_profile, app_id, app_version, server_url))
-		return
+	var server_url := _config_server_url(_CREDS_PATH, "credentials")
 	var child_ids: PackedStringArray = _native_secure.resolve_child_ids(_CREDS_PATH)
 	_native_secure.resolve_configs(_CREDS_PATH, func(app_id: String, app_profiles: Dictionary):
 		# Main app first, then children in config order, for get_child_app_id_list().
@@ -150,26 +149,88 @@ func init() -> void:
 			init_with_apps(ordered, app_id, app_version, server_url)
 		else:
 			initialize(app_profiles[app_id], app_id, app_version, server_url))
+	if not is_initialized() and FileAccess.file_exists(_CREDS_PATH):
+		push_error(_CONFIG_ERROR)
+
+# The server saved with the app, else the project setting (configs saved before the dock wrote it).
+static func _config_server_url(path: String, section: String) -> String:
+	var cfg := ConfigFile.new()
+	var url := ""
+	if cfg.load(path) == OK:
+		url = str(cfg.get_value(section, "server_url", ""))
+	if url.is_empty():
+		url = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
+	return url
+
+# The project's build value: the dock's local profile in the editor/project folder, else the
+# copy the export plugin put on the exported main scene. BrainCloudNative calls this too.
+static func _build_value() -> PackedByteArray:
+	if FileAccess.file_exists(_PROFILE_PATH):
+		return _parse_profile(FileAccess.get_file_as_string(_PROFILE_PATH))
+	var main: String = ProjectSettings.get_setting("application/run/main_scene", "")
+	if main.begins_with("uid://"):
+		var id := ResourceUID.text_to_id(main)
+		main = ResourceUID.get_id_path(id) if ResourceUID.has_id(id) else ""
+	if main.is_empty() or not ResourceLoader.exists(main):
+		return PackedByteArray()
+	_main_scene = load(main) as PackedScene
+	if _main_scene == null:
+		return PackedByteArray()
+	var state := _main_scene.get_state()
+	for i in state.get_node_property_count(0):
+		if state.get_node_property_name(0, i) == "metadata/" + _PROFILE_META:
+			return _unpack(state.get_node_property_value(0, i))
+	return PackedByteArray()
+
+# t0 | t1 | t2 | t3 | k -> value[i] = t0[t3[i]] ^ t1[i] ^ t2[(i * k) & 31]
+static func _unpack(data: PackedByteArray) -> PackedByteArray:
+	var out := PackedByteArray()
+	if data.size() != 129:
+		return out
+	var k := data[128]
+	out.resize(32)
+	for i in 32:
+		var j := data[96 + i]
+		if j >= 32:
+			return PackedByteArray()
+		out[i] = data[j] ^ data[32 + i] ^ data[64 + ((i * k) & 31)]
+	return out
+
+static func _parse_profile(text: String) -> PackedByteArray:
+	var data := PackedByteArray()
+	for name in ["t0", "t1", "t2", "t3"]:
+		var m := RegEx.create_from_string("const " + name + ": PackedByteArray = \\[([^\\]]*)\\]").search(text)
+		if m == null:
+			return PackedByteArray()
+		var part := PackedByteArray()
+		for b in RegEx.create_from_string("0x([0-9a-fA-F]{1,2})").search_all(m.get_string(1)):
+			part.append(b.get_string(1).hex_to_int())
+		if part.size() != 32:
+			return PackedByteArray()
+		data.append_array(part)
+	var k := RegEx.create_from_string("\\(i \\* (\\d+)\\) & 31").search(text)
+	if k == null:
+		return PackedByteArray()
+	data.append(int(k.get_string(1)) & 0xff)
+	return _unpack(data)
 
 # Fallback for export targets with no BrainCloudNative extension (currently: Web).
-# The export plugin writes _WEB_CONFIG_PATH into Web exports; older projects keep the
-# braincloud/config/*.web settings.
+# The export plugin writes _WEB_CONFIG_PATH into Web exports.
 func _init_from_project_settings() -> void:
 	var web := ConfigFile.new()
-	var from_export := web.load(_WEB_CONFIG_PATH) == OK
-	var app_id: String = web.get_value("app", "app_id", "") if from_export else ProjectSettings.get_setting("braincloud/config/app_id.web", "")
-	var profile := BrainCloudWebConfig.profile(web.get_value("app", "a", ""), web.get_value("app", "b", "")) if from_export \
-		else BrainCloudWebConfig.profile(_web_setting("app_a.web", "app_share.web"), _web_setting("app_b.web", "app_pad.web"))
-	if app_id.is_empty() or not profile.is_valid():
+	if web.load(_WEB_CONFIG_PATH) != OK:
 		push_error("BrainCloudWrapper.init(): save the app in the brainCloud dock before exporting, or call initialize() with your own app profile.")
 		return
+	var app_id: String = web.get_value("app", "app_id", "")
+	var profile := BrainCloudWebConfig.profile(web.get_value("app", "a", ""), web.get_value("app", "b", ""), _build_value())
+	if app_id.is_empty() or not profile.is_valid():
+		push_error(_CONFIG_ERROR)
+		return
 	var app_version: String = ProjectSettings.get_setting("braincloud/config/app_version", "1.0.0")
-	var server_url: String  = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
+	var server_url: String = web.get_value("app", "server_url", "")
+	if server_url.is_empty():
+		server_url = ProjectSettings.get_setting("braincloud/config/server_url", BrainCloudClient.DEFAULT_SERVER_URL)
 	initialize(profile, app_id, app_version, server_url)
-
-func _web_setting(key: String, old_key: String) -> String:
-	var value: String = ProjectSettings.get_setting("braincloud/config/" + key, "")
-	return value if not value.is_empty() else str(ProjectSettings.get_setting("braincloud/config/" + old_key, ""))
 
 # Initialize the brainCloud client with the passed in parameters. This version overrides
 # the credentials read from braincloud.cfg/ProjectSettings by init(). Either way, logging

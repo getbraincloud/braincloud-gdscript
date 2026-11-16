@@ -64,7 +64,7 @@ func _init() -> void:
 func _run_tests() -> void:
 	var ok := await _bc_test.setup_bc()
 	if not ok:
-		push_error("BCTest setup failed — check test/ids.cfg")
+		push_error("BCTest setup failed")
 		quit(1)
 		return
 
