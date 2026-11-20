@@ -21,9 +21,18 @@ static func _state_name(s: int) -> String:
 
 func connect_to(host: String, port: int, use_ssl: bool) -> Error:
 	_ws = WebSocketPeer.new()
-	var scheme := "wss" if use_ssl else "ws"
-	# Trailing slash required — Godot's URL parser needs a path segment for correct HTTP upgrade.
-	var url := "%s://%s:%d/" % [scheme, host, port]
+	var url: String
+	var authority: String
+	if host.contains("://"):
+		# A full URL (connectData.secureUrl) is used as given; port is ignored.
+		url = host
+		use_ssl = host.begins_with("wss://")
+		authority = host.get_slice("://", 1).get_slice("/", 0)
+	else:
+		var scheme := "wss" if use_ssl else "ws"
+		# Trailing slash required — Godot's URL parser needs a path segment for correct HTTP upgrade.
+		url = "%s://%s:%d/" % [scheme, host, port]
+		authority = "%s:%d" % [host, port]
 
 	# libwebsockets relay servers reject upgrades without an Origin header (RFC 6455 §10.2).
 	# Scheme must track use_ssl — an "http://" Origin on a "wss://" handshake is a scheme
@@ -32,7 +41,7 @@ func connect_to(host: String, port: int, use_ssl: bool) -> Error:
 	# has no effect — browsers forbid scripts from overriding Origin — but it's still what
 	# actually goes out on native desktop exports, where WebSocketPeer is Godot's own.)
 	var origin_scheme := "https" if use_ssl else "http"
-	_ws.handshake_headers = PackedStringArray(["Origin: %s://%s:%d" % [origin_scheme, host, port]])
+	_ws.handshake_headers = PackedStringArray(["Origin: %s://%s" % [origin_scheme, authority]])
 	var tls_opts := TLSOptions.client_unsafe() if use_ssl else null
 	print("[RelayWSSocket] connecting to: ", url)
 	print("[RelayWSSocket]   headers=%s tls=%s" % [str(_ws.handshake_headers), ("client_unsafe" if use_ssl else "none")])

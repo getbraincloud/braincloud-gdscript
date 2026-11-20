@@ -12,6 +12,7 @@ var _relay_lobby_type: String     = ""
 var _room_data:        Dictionary = {}
 var _lobby_id:         String     = ""
 var _rtt_ok:           bool       = false
+var _secure:           bool       = false
 
 func run(bc: BCTest) -> void:
 	await test_service_accessible(bc)
@@ -24,14 +25,18 @@ func run(bc: BCTest) -> void:
 	# Integration tests — require a lobby
 	# type that has a relay server configured (everyReadyMinNum=1 recommended so
 	# a single ready player triggers ROOM_READY without waiting for others).
-	await test_relay_enable_rtt(bc)
-	await test_relay_find_lobby_and_room_ready(bc)
-	await test_relay_connect_ws(bc)
-	await test_relay_net_id_assigned(bc)
-	await test_relay_send_to_self(bc)
-	await test_relay_ping_measured(bc)
-	await test_relay_disconnect_clean(bc)
-	await test_relay_cleanup(bc)
+	# Full flow over ws, then wss (connectData.secureUrl).
+	for secure in [false, true]:
+		_secure = secure
+		_room_data = {}
+		await test_relay_enable_rtt(bc)
+		await test_relay_find_lobby_and_room_ready(bc)
+		await test_relay_connect_ws(bc)
+		await test_relay_net_id_assigned(bc)
+		await test_relay_send_to_self(bc)
+		await test_relay_ping_measured(bc)
+		await test_relay_disconnect_clean(bc)
+		await test_relay_cleanup(bc)
 
 # ── Offline tests ─────────────────────────────────────────────────────────────
 
@@ -184,7 +189,7 @@ func test_relay_find_lobby_and_room_ready(bc: BCTest) -> void:
 
 
 func test_relay_connect_ws(bc: BCTest) -> void:
-	bc.begin_test("relay_connect_ws")
+	bc.begin_test("relay_connect_wss" if _secure else "relay_connect_ws")
 	if _room_data.is_empty():
 		bc.expect_true(false, "skipping — no room data from test_relay_find_lobby_and_room_ready")
 		return
@@ -210,6 +215,13 @@ func test_relay_connect_ws(bc: BCTest) -> void:
 		use_ssl = true
 	else:
 		port = int(ports.values()[0]) if not ports.is_empty() else 9301
+
+	if _secure:
+		# wss uses the server-provided URL as-is; no port
+		bc.expect_true(connect_data.has("secureUrl"), "connectData has no secureUrl")
+		host = connect_data.get("secureUrl", "")
+		port = 0
+		use_ssl = true
 
 	print("[relay_test] relay_connect host='%s' port=%d ssl=%s lobbyId='%s'" % [host, port, str(use_ssl), _lobby_id])
 
