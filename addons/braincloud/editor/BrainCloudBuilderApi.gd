@@ -72,6 +72,11 @@ static func request(parent: Node, method: HTTPClient.Method, url: String,
 	parent.add_child(http)
 	http.timeout = 30.0
 
+	# Godot omits Content-Length for an empty body; load balancers like the GCP one in front of internalg reject that (411).
+	if body.is_empty() and (method == HTTPClient.METHOD_POST or method == HTTPClient.METHOD_PUT):
+		headers = headers.duplicate()
+		headers.append("Content-Length: 0")
+
 	var err := http.request(url, headers, method, body)
 	if err != OK:
 		http.queue_free()
@@ -81,6 +86,8 @@ static func request(parent: Node, method: HTTPClient.Method, url: String,
 	var on_request_completed := func(result: int, response_code: int, _resp_headers: PackedStringArray, body_bytes: PackedByteArray):
 		http.queue_free()
 		var text := body_bytes.get_string_from_utf8()
+		if result != HTTPRequest.RESULT_SUCCESS and response_code == 0 and text.is_empty():
+			text = "request failed (HTTPRequest result %d)" % result
 		var parsed = null
 		if not text.is_empty():
 			var json := JSON.new()

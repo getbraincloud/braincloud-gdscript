@@ -37,7 +37,7 @@ Once the plugin is enabled a **brainCloud** dock appears on the right side of th
 | **App Version** | Your game version string (e.g. `1.0.0`) |
 | **Debug Logging** | Prints all API traffic to the Godot output panel |
 
-Credentials are saved to `addons/braincloud/braincloud.cfg`, which the plugin automatically adds to your `.gitignore` so secrets are never committed.
+Save writes `addons/braincloud/braincloud.cfg` (app and server) and `.braincloud/build_profile.gd`; both are added to your `.gitignore`. Keep the pair together when sharing a project with a teammate or build machine.
 
 ---
 

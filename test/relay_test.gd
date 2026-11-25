@@ -27,10 +27,21 @@ func run(bc: BCTest) -> void:
 	# a single ready player triggers ROOM_READY without waiting for others).
 	# Full flow over ws, then wss (connectData.secureUrl).
 	for secure in [false, true]:
+		# Set by bccm for envs without relay WSS yet
+		if secure and OS.get_environment("BC_SKIP_WSS") != "":
+			bc.begin_test("relay_connect_wss")
+			bc.expect_true(true, "skipping — BC_SKIP_WSS set")
+			continue
 		_secure = secure
 		_room_data = {}
 		await test_relay_enable_rtt(bc)
 		await test_relay_find_lobby_and_room_ready(bc)
+		# secureUrl is only sent when the app has relayServerSecureEnabled
+		if secure and not _room_data.is_empty() and not _room_data.get("connectData", {}).has("secureUrl"):
+			bc.begin_test("relay_connect_wss")
+			bc.expect_true(true, "skipping — connectData has no secureUrl")
+			await test_relay_cleanup(bc)
+			continue
 		await test_relay_connect_ws(bc)
 		await test_relay_net_id_assigned(bc)
 		await test_relay_send_to_self(bc)

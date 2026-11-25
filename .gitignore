@@ -21,3 +21,4 @@ test-results.xml
 # brainCloud app config (generated)
 .braincloud/
 /.braincloud/build_profile.gd
+test-results.xml
